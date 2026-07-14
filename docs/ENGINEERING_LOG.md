@@ -23,3 +23,10 @@
 - A frontend lockfile and dependency tree were produced at 12:30 on July 11, after the 12:17 handoff claimed they were absent. The shared task documents were corrected before implementation resumed.
 - `npm ls --depth=0` succeeds but reports extraneous `@emnapi/runtime`.
 - `npx tsc --noEmit --incremental false` passes. A bounded `npx eslint src --no-cache` run timed out after 45 seconds without reporting a code error, consistent with the existing `/mnt/c` tooling-performance concern.
+
+## 2026-07-14 — Native Windows toolchain and backend foundation
+
+- The Windows Python launcher already provided Python 3.11. A project `.venv` was created and the ordinary `backend[dev]` dependencies installed successfully; the optional Basic Pitch group remains deferred.
+- Native Windows `npm ci` completed successfully against the repository lockfile. This is the supported dependency-install path while the checkout remains under `/mnt/c`.
+- Implemented the initial FastAPI/SQLite vertical-slice backend with Alembic-owned schema creation, SQLAlchemy models, structured errors, cached dependency states, explicit unfinished capability states, project creation, and secure upload storage.
+- Backend verification passed: Ruff, strict mypy across 22 source files, and 13 pytest tests using temporary migrated SQLite databases. FastAPI's test client emits one upstream Starlette deprecation warning about future `httpx2` migration.

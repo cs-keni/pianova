@@ -1,22 +1,27 @@
 # Pianova Initial Scaffold Implementation Plan
 
-Status: reviewed and approved; Checkpoint 1 is partially implemented and blocked on local Python/npm setup as of 2026-07-11.
+Status: reviewed and approved; Checkpoints 1 and 2 are implemented and backend-verified as of 2026-07-14. Checkpoint 3 is in progress.
 
 ## Implementation progress
 
 ```text
-Checkpoint 1  IN PROGRESS
+Checkpoint 1  COMPLETE
   [x] Repository configuration and ignore rules
   [x] Python 3.11 backend dependency manifest
   [x] Workspace and sample directory boundaries
   [x] Root setup/architecture README
   [x] Next.js TypeScript source scaffold
   [x] Frontend lockfile and dependency tree produced (clean-install/build verification pending)
-  [ ] Python 3.11 virtual environment
-  [ ] Checkpoint 1 lint/build verification
+  [x] Python 3.11 virtual environment
+  [x] Backend dependency verification and frontend clean dependency install
 
-Checkpoint 2  NOT STARTED
-Checkpoint 3  NOT STARTED
+Checkpoint 2  COMPLETE
+  [x] Settings, structured errors, and capability/dependency registry
+  [x] SQLAlchemy models and initial Alembic migration
+  [x] Project creation and secure upload APIs
+  [x] Ruff, strict mypy, and 13 migrated-database pytest tests
+
+Checkpoint 3  IN PROGRESS
 ```
 
 Active blockers and recovery commands are maintained in `docs/CURRENT_TASK.md`; investigation evidence is in `docs/ENGINEERING_LOG.md`.

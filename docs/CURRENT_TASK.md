@@ -6,7 +6,7 @@ Initial local scaffold and vertical-slice foundation from the `first.md` "First 
 
 ## Status
 
-Engineering plan reviewed and cleared. Checkpoint 1 is in progress: repository configuration, backend manifest, root README, workspace boundaries, and the Next.js source scaffold exist. Python 3.11 is still missing. A frontend lockfile and dependency tree now exist, TypeScript checking passes, and dependency inspection succeeds, but ESLint did not complete within 45 seconds on the WSL-mounted Windows filesystem.
+Checkpoints 1 and 2 are implemented. Windows Python 3.11 and native npm resolved the local toolchain blockers. The backend now has migrated SQLite models, cached dependency/capability reporting, structured errors, project creation, and streamed signature-checked atomic uploads. Ruff, strict mypy, and 13 pytest tests pass. Checkpoint 3 frontend implementation and end-to-end verification are next.
 
 ## Approved decisions
 
@@ -20,7 +20,7 @@ Engineering plan reviewed and cleared. Checkpoint 1 is in progress: repository c
 
 ## Next action
 
-Preserve the scaffold in Git, resolve the Python 3.11 and frontend lint/build blockers, finish Checkpoint 1 checks, then begin the backend implementation.
+Replace the generated frontend with the Pianova health, project-creation, and upload flow; add frontend tests; then run the complete vertical slice.
 
 ### Recommended recovery path
 
@@ -37,13 +37,12 @@ Then install Python 3.11, return to the repository root, and follow the backend 
 
 ## Active blockers
 
-- Python 3.11 is not installed; the system default is Python 3.13.12.
-- Linux npm previously failed while renaming package directories under `/mnt/c/.../frontend/node_modules` (`EACCES`/`ENOTEMPTY`). A lockfile and dependency tree were later produced, but ESLint still stalls on this filesystem and the install has not passed a clean build verification.
+- No implementation blocker is active. Use the Windows Python 3.11 virtual environment and native Windows npm for this `/mnt/c` checkout.
 
 ## Worktree state
 
-- All scaffold and documentation files are currently uncommitted.
-- `frontend/package-lock.json` and `frontend/node_modules` were produced after the previous handoff; `node_modules` remains ignored.
-- `npm ls --depth=0` succeeds with one extraneous package (`@emnapi/runtime`).
-- `npx tsc --noEmit --incremental false` passes; `npx eslint src --no-cache` timed out after 45 seconds without reporting a code error.
-- No commit or push was made because runtime checks could not complete.
+- The recovered scaffold is preserved in Git as WIP commit `080069a`.
+- Windows Python 3.11 virtual environment and backend development dependencies are installed under ignored `.venv/`.
+- Native Windows `npm ci` completed successfully; `node_modules` remains ignored.
+- Backend verification: Ruff passed, strict mypy passed, and pytest passed 13 tests with one upstream test-client deprecation warning.
+- Backend implementation changes are ready for a logical checkpoint commit.
