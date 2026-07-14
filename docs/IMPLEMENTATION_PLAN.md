@@ -1,6 +1,6 @@
 # Pianova Initial Scaffold Implementation Plan
 
-Status: reviewed and approved; Checkpoints 1 and 2 are implemented and backend-verified as of 2026-07-14. Checkpoint 3 is in progress.
+Status: complete and verified as of 2026-07-14. The next plan should cover FFprobe inspection and FFmpeg normalized-WAV generation.
 
 ## Implementation progress
 
@@ -19,9 +19,14 @@ Checkpoint 2  COMPLETE
   [x] Settings, structured errors, and capability/dependency registry
   [x] SQLAlchemy models and initial Alembic migration
   [x] Project creation and secure upload APIs
-  [x] Ruff, strict mypy, and 13 migrated-database pytest tests
+  [x] Ruff, strict mypy, and 24 migrated-database pytest tests
 
-Checkpoint 3  IN PROGRESS
+Checkpoint 3  COMPLETE
+  [x] Typed frontend API client and responsive health/create/upload interface
+  [x] Explicit loading, error, unavailable, and not-implemented states
+  [x] Four Vitest component tests
+  [x] ESLint, TypeScript, and optimized production build
+  [x] Live Playwright valid-WAV acceptance and mismatched-content rejection
 ```
 
 Active blockers and recovery commands are maintained in `docs/CURRENT_TASK.md`; investigation evidence is in `docs/ENGINEERING_LOG.md`.
@@ -183,8 +188,8 @@ pianova/
 - `first.md` is the product, architecture, scope-order, and milestone source of truth. This plan narrows it into executable checkpoints rather than duplicating the long-term roadmap.
 - `AGENTS.md` defines delivery and shared-context rules. The implementation follows those rules.
 - Git is initialized on `main` and tracks `origin/main`.
-- Python 3.13.12, Node 20.19.5, npm 11.14.1, FFmpeg 6.1.1, and FFprobe 6.1.1 are installed. Python 3.11 and MuseScore are not currently detected.
-- No application code, dependency manifests, tests, migrations, or reusable flows exist yet.
+- Windows Python 3.11 and native Windows Node/npm are the verified runtime for this `/mnt/c` checkout. WSL also has Python 3.13.12, Node 20.19.5, FFmpeg 6.1.1, and FFprobe 6.1.1; MuseScore is not currently detected.
+- The scaffold, migrated backend, connected frontend, secure-upload flow, tests, and documentation described by this plan are implemented.
 
 ## NOT in scope
 
@@ -212,13 +217,13 @@ Execution order: begin A and the non-command portions of C; begin B after API co
 
 ## Implementation tasks
 
-- [ ] **T1 (P1, human: ~4h / Codex: ~30m)** — Environment — dependency boundaries are documented; Python 3.11 installation and executable verification remain.
-- [ ] **T2 (P1, human: ~6h / Codex: ~45m)** — Persistence — add SQLAlchemy models, Alembic migration, and migrated SQLite test fixtures.
-- [ ] **T3 (P1, human: ~8h / Codex: ~60m)** — Storage — implement streamed, validated, atomic uploads with cleanup and compensation tests.
-- [ ] **T4 (P1, human: ~4h / Codex: ~30m)** — API — implement capability registry, cached dependency probing, structured errors, health, and project creation.
-- [ ] **T5 (P1, human: ~8h / Codex: ~60m)** — Frontend — implement health, project creation, and upload states against typed API contracts.
-- [ ] **T6 (P1, human: ~6h / Codex: ~45m)** — Verification — add frontend unit tests and Playwright vertical-slice tests.
-- [ ] **T7 (P2, human: ~4h / Codex: ~30m)** — Documentation — write exact setup, test, verification, capability, and limitation guidance.
+- [x] **T1** — Environment and dependency boundaries.
+- [x] **T2** — SQLAlchemy models, Alembic migration, and migrated SQLite test fixtures.
+- [x] **T3** — Streamed, validated, atomic uploads with cleanup tests.
+- [x] **T4** — Capabilities, cached dependency probes, structured errors, health, config, dependencies, and project APIs.
+- [x] **T5** — Frontend health, project creation, upload, and truthful capability states.
+- [x] **T6** — Backend, component, production-build, and Playwright verification.
+- [x] **T7** — Setup, architecture, pipeline, data model, roadmap, research, evaluation, capability, and limitation documentation.
 
 ## Inline diagram guidance
 

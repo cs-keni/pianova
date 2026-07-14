@@ -17,7 +17,7 @@ def test_capabilities_require_both_ffmpeg_tools() -> None:
         item.key: item for item in build_capabilities(ffmpeg=True, ffprobe=False, musescore=True)
     }
 
-    assert capabilities["media_normalization"].state is CapabilityState.UNAVAILABLE
+    assert capabilities["media_normalization"].state is CapabilityState.NOT_IMPLEMENTED
     assert capabilities["transcription"].state is CapabilityState.NOT_IMPLEMENTED
     assert capabilities["score_rendering"].state is CapabilityState.NOT_IMPLEMENTED
 
@@ -26,3 +26,10 @@ def test_upload_limit_is_exposed_in_bytes(tmp_path: Path) -> None:
     settings = Settings(workspace_dir=tmp_path, max_upload_mb=7)
 
     assert settings.max_upload_bytes == 7 * 1024 * 1024
+
+
+def test_local_frontend_origins_cover_hostname_and_loopback() -> None:
+    settings = Settings()
+
+    assert "http://localhost:3000" in settings.cors_origins
+    assert "http://127.0.0.1:3000" in settings.cors_origins

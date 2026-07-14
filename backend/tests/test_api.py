@@ -13,10 +13,10 @@ def test_health_reports_real_and_unfinished_capabilities(client: TestClient) -> 
         "musescore": False,
     }
     capabilities = {item["key"]: item["state"] for item in body["capabilities"]}
-    assert capabilities["media_normalization"] == "available"
+    assert capabilities["media_normalization"] == "not_implemented"
     assert capabilities["transcription"] == "not_implemented"
     assert capabilities["musicxml"] == "not_implemented"
-    assert capabilities["score_rendering"] == "unavailable"
+    assert capabilities["score_rendering"] == "not_implemented"
 
 
 def test_config_reports_upload_contract(client: TestClient) -> None:
@@ -25,6 +25,13 @@ def test_config_reports_upload_contract(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.json()["max_upload_mb"] == 1
     assert response.json()["supported_extensions"] == [".m4a", ".mov", ".mp3", ".mp4", ".wav"]
+
+
+def test_dependencies_are_available_as_a_standalone_contract(client: TestClient) -> None:
+    response = client.get("/api/dependencies")
+
+    assert response.status_code == 200
+    assert [item["name"] for item in response.json()] == ["ffmpeg", "ffprobe", "musescore"]
 
 
 def test_create_project_persists_and_creates_storage(client: TestClient) -> None:
@@ -64,6 +71,35 @@ def test_upload_wav_updates_project(client: TestClient, wav_bytes: bytes) -> Non
     assert body["project"]["original_filename"] == "performance.wav"
     assert body["detected_type"] == "wav"
     assert body["stored_filename"].startswith("source-")
+
+
+def test_upload_uses_detected_mime_not_client_claim(client: TestClient, wav_bytes: bytes) -> None:
+    project = client.post("/api/projects", json={"title": "MIME test"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/upload",
+        files={"file": ("performance.wav", wav_bytes, "text/html")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["project"]["media_type"] == "audio/x-wav"
+
+
+def test_second_source_upload_is_rejected(client: TestClient, wav_bytes: bytes) -> None:
+    project = client.post("/api/projects", json={"title": "One source"}).json()
+    first = client.post(
+        f"/api/projects/{project['id']}/upload",
+        files={"file": ("first.wav", wav_bytes, "audio/wav")},
+    )
+
+    second = client.post(
+        f"/api/projects/{project['id']}/upload",
+        files={"file": ("second.wav", wav_bytes, "audio/wav")},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["error"]["code"] == "source_already_uploaded"
 
 
 def test_upload_rejects_disguised_file(client: TestClient) -> None:

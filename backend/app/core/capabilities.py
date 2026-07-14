@@ -22,8 +22,12 @@ def build_capabilities(*, ffmpeg: bool, ffprobe: bool, musescore: bool) -> list[
         Capability(
             key="media_normalization",
             label="Media normalization",
-            state=CapabilityState.AVAILABLE if media_ready else CapabilityState.UNAVAILABLE,
-            reason=None if media_ready else "FFmpeg and FFprobe are both required.",
+            state=CapabilityState.NOT_IMPLEMENTED,
+            reason=(
+                "FFmpeg and FFprobe are ready, but normalization is not implemented yet."
+                if media_ready
+                else "Normalization is not implemented; FFmpeg and FFprobe are also required."
+            ),
         ),
         Capability(
             key="transcription",
@@ -40,7 +44,7 @@ def build_capabilities(*, ffmpeg: bool, ffprobe: bool, musescore: bool) -> list[
         Capability(
             key="score_rendering",
             label="Score rendering",
-            state=(CapabilityState.NOT_IMPLEMENTED if musescore else CapabilityState.UNAVAILABLE),
+            state=CapabilityState.NOT_IMPLEMENTED,
             reason=(
                 "Score rendering has not been implemented yet."
                 if musescore

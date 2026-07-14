@@ -2,78 +2,140 @@
 
 > Hear it. See it. Play it.
 
-Pianova is a local-first, AI-assisted piano transcription application that will turn solo-piano audio and video into readable, editable MIDI and MusicXML. The current milestone is the application foundation: a typed FastAPI API, SQLite persistence, safe local uploads, and a Next.js interface. Transcription and score generation are not implemented yet.
+Pianova is a local-first, AI-assisted piano transcription application. The first working slice creates a project, securely stores an MP3, WAV, M4A, MP4, or MOV source, and reports which local processing capabilities are actually available. Transcription and score generation remain explicitly unfinished.
 
-## Current capabilities
+## What works now
 
-- Engineering plan and compatibility baseline.
-- Repository and dependency scaffold.
-- Generated Next.js TypeScript source scaffold; dependency installation is currently blocked under Linux npm on the `/mnt/c` workspace.
-- FFmpeg/FFprobe discovery, project creation, and secure uploads are planned but not yet implemented.
+- FastAPI health and configuration APIs with cached FFmpeg, FFprobe, and MuseScore probes.
+- SQLite projects managed through SQLAlchemy and Alembic migrations.
+- Streamed uploads with a configurable byte limit, generated filenames, media-signature validation, atomic finalization, and failure cleanup.
+- A responsive Next.js interface for API status, project creation, and source upload.
+- Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
+- Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
-Not implemented: media normalization, transcription, MIDI, MusicXML, PDF rendering, note editing, or Synthesia analysis. Pianova must report these stages as unavailable rather than simulate success.
+Not implemented: media normalization, transcription, MIDI, MusicXML, PDF rendering, note editing, or Synthesia analysis. The interface never presents these stages as working.
+
+## Screenshots
+
+The current interface is available after starting both local servers. Add stable product screenshots here after the visual design milestone; generated test traces and screenshots are intentionally ignored.
+
+## Architecture
+
+```text
+Browser (Next.js)
+  |  GET /api/health, GET /api/config, GET /api/dependencies
+  |  POST /api/projects, POST /api/projects/{id}/upload
+  v
+FastAPI
+  +-- typed settings, errors, capabilities, dependency probes
+  +-- SQLAlchemy sessions --> SQLite (Alembic migrations)
+  +-- upload service ------> workspace/projects/<UUID>/source-<UUID>.<ext>
+```
+
+FastAPI owns persistence and local artifacts. The frontend consumes typed HTTP contracts and never imports backend code. Later processing stages will consume typed musical models without depending on the UI. See [architecture](docs/architecture.md), [pipeline](docs/pipeline.md), and [data model](docs/data-model.md).
+
+## Technology
+
+- Next.js 16 and TypeScript 5
+- React 19
+- FastAPI and Pydantic 2
+- SQLAlchemy 2 and Alembic
+- SQLite and project-scoped filesystem storage
+- FFmpeg/FFprobe for the next media milestone
+- pytest, Vitest, and Playwright
 
 ## Requirements
 
-- Python 3.11.x. Python 3.12+ is intentionally unsupported for the initial Basic Pitch-compatible environment.
+- Python 3.11.x. Python 3.12+ is intentionally outside the initial Basic Pitch-compatible environment.
 - Node.js 20.9 or newer; Node 20 LTS is recommended.
-- FFmpeg and FFprobe on `PATH`, or configured through `.env`.
-- MuseScore 4 is optional and will only be needed for later PDF/SVG rendering.
+- FFmpeg and FFprobe on `PATH`, or explicit paths in `.env`.
+- MuseScore 4 is optional and only needed when PDF/SVG rendering is implemented.
 
-The checked environment currently has Node 20.19.5 and FFmpeg/FFprobe 6.1.1. Its default Python is 3.13.12, so install Python 3.11 before running the backend.
+The verified Windows environment uses Python 3.11 through `py -3.11`. The WSL default Python may still be 3.13; do not use it for this project environment.
 
-## Setup
+## Install local executables
 
-Copy `.env.example` to `.env` from the repository root.
+Install FFmpeg with `winget install Gyan.FFmpeg` on Windows, `brew install ffmpeg` on macOS, or your Linux distribution package. Confirm both tools:
 
-### Backend (Windows PowerShell)
+```bash
+ffmpeg -version
+ffprobe -version
+```
+
+MuseScore is optional. Install MuseScore 4 from [musescore.org](https://musescore.org/) or with `winget install MuseScore.MuseScore`. Set `PIANOVA_MUSESCORE_PATH` if it is not on `PATH`.
+
+## Set up the project
+
+Copy `.env.example` to `.env` from the repository root. To override the frontend API URL,
+copy `frontend/.env.example` to `frontend/.env.local`. Defaults are suitable for local development.
+
+### Windows PowerShell
 
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".\backend[dev]"
+
 cd backend
 alembic upgrade head
-uvicorn app.main:app --reload
+cd ..\frontend
+npm ci
 ```
 
-### Backend (macOS, Linux, or WSL)
+For a repository stored under `/mnt/c` in WSL, run npm through native Windows PowerShell. Linux npm previously hit Windows-filesystem package rename failures.
+
+### macOS, Linux, or a WSL ext4 clone
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e './backend[dev]'
+
 cd backend
 alembic upgrade head
-uvicorn app.main:app --reload
+cd ../frontend
+npm ci
 ```
 
-The API will run at `http://127.0.0.1:8000` and interactive documentation at `http://127.0.0.1:8000/docs`.
+The optional transcription stack is deliberately not installed by these commands.
 
-### Frontend
+## Run Pianova
 
-```bash
-cd frontend
-npm install
+Start the API in one terminal:
+
+```powershell
+cd C:\dev\pianova\backend
+..\.venv\Scripts\python.exe -m alembic upgrade head
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+```
+
+Start the frontend in another terminal:
+
+```powershell
+cd C:\dev\pianova\frontend
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost:3000`. API documentation is at `http://127.0.0.1:8000/docs`.
 
-## Checks
+## Verify the implemented slice
 
-```bash
-cd backend
-ruff check .
-mypy app
-pytest
-alembic check
+Create a project in the browser, choose a supported piano file, and upload it. Success means the page reports `Source file secured` and explicitly says transcription has not started. The source is stored under `workspace/projects/<project-id>/` with a generated filename.
+
+Run backend checks from `backend/`:
+
+```powershell
+..\.venv\Scripts\ruff.exe check .
+..\.venv\Scripts\mypy.exe app
+..\.venv\Scripts\pytest.exe
+..\.venv\Scripts\alembic.exe check
 ```
 
-```bash
-cd frontend
+Run frontend checks from `frontend/`:
+
+```powershell
 npm run lint
 npm run typecheck
 npm test
@@ -81,33 +143,52 @@ npm run build
 npm run test:e2e
 ```
 
-These commands become executable as their checkpoint lands. See [the reviewed implementation plan](docs/IMPLEMENTATION_PLAN.md) and [current task](docs/CURRENT_TASK.md) for exact status.
+Playwright starts both local servers through a platform-aware Python launcher, creates real migrated
+projects, accepts a small WAV fixture, and rejects content that only pretends to be WAV.
 
-On the current WSL checkout, use native Windows npm or a WSL ext4 clone for frontend installation. Repeated Linux npm attempts under `/mnt/c` failed during package-directory renames; see [the engineering log](docs/ENGINEERING_LOG.md).
+## Configuration
 
-## Architecture
+All backend variables use the `PIANOVA_` prefix. The main settings are database URL, workspace directory, FFmpeg/FFprobe/MuseScore executable paths, maximum upload size, log level, and allowed local frontend origins. Backend defaults are in [.env.example](.env.example). `NEXT_PUBLIC_PIANOVA_API_URL` selects the frontend API base URL and belongs in `frontend/.env.local`; see [frontend/.env.example](frontend/.env.example).
 
-The browser talks to one local FastAPI process. FastAPI owns SQLite and files under `workspace/projects/<generated-project-id>/`. Processing stages will consume typed domain models and remain independent from the frontend. External programs are invoked with argument arrays, configured paths, captured output, and timeouts.
+## Supported source formats
 
-## Supported upload formats
+MP3, WAV, M4A, MP4, and MOV are accepted. Pianova does not trust the extension alone: the upload service compares it with the detected file signature. FFprobe decodability and duration inspection belong to the next milestone.
 
-The active milestone targets MP3, WAV, M4A, MP4, and MOV. An extension alone is never trusted; the upload service also checks a detected media signature and later FFprobe will validate decodability.
+## Limitations
+
+- A successful upload proves safe local storage, not audio validity beyond its media signature.
+- FFmpeg availability is reported, but normalization is not wired into the processing pipeline yet.
+- MuseScore absence never blocks project creation or future MusicXML export.
+- Projects cannot yet be listed, renamed, deleted, or reprocessed through the UI.
+- Upload progress is represented as a pending state, not a byte-level progress bar.
 
 ## Troubleshooting
 
-- `python3.11: command not found`: install Python 3.11 and recreate the virtual environment.
-- FFmpeg unavailable: install FFmpeg and ensure both `ffmpeg` and `ffprobe` are on `PATH`, or set explicit paths in `.env`.
-- MuseScore unavailable: expected for the current milestone. Later MusicXML export will work without PDF rendering.
-- Frontend cannot reach backend: confirm the API is on port 8000 and `NEXT_PUBLIC_PIANOVA_API_URL` matches it.
+- `py -3.11` missing: install Python 3.11 and recreate `.venv`.
+- Frontend shows `API offline`: confirm Uvicorn is listening on port 8000 and `NEXT_PUBLIC_PIANOVA_API_URL` matches it.
+- Browser reports a CORS failure: use `localhost:3000` or `127.0.0.1:3000`, both included by default, or update `PIANOVA_CORS_ORIGINS`.
+- npm rename errors under `/mnt/c`: use native Windows npm or move the clone to WSL's ext4 filesystem.
+- Migration errors: run `alembic upgrade head` from `backend/` before starting the API.
+- MuseScore unavailable: expected until score rendering is implemented.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Pipeline](docs/pipeline.md)
+- [Data model](docs/data-model.md)
+- [Roadmap](docs/roadmap.md)
+- [Research notes](docs/research-notes.md)
+- [Evaluation plan](docs/evaluation.md)
+- [Reviewed implementation plan](docs/IMPLEMENTATION_PLAN.md)
 
 ## Responsible use
 
-Only process recordings you possess and are authorized to transcribe. Pianova does not download or scrape media from third-party platforms. Respect copyright and platform terms.
+Only process recordings you possess or are authorized to transcribe. Pianova does not download or scrape third-party media. Respect copyright and platform terms.
 
 ## Roadmap
 
-Secure upload → media inspection → normalized WAV → real transcription → raw MIDI → quantization and hand separation → MusicXML → optional score rendering → correction tools → evaluation → Synthesia analysis.
+Secure upload is complete. Next: FFprobe inspection and normalized WAV, then real transcription, raw MIDI, readable quantization and hand separation, MusicXML, optional score rendering, correction tools, evaluation, and finally Synthesia analysis. See the [milestone roadmap](docs/roadmap.md).
 
 ## License
 
-No project license has been selected yet. Do not assume redistribution rights until a license file is added.
+No project license has been selected. Do not assume redistribution rights until a license file is added.

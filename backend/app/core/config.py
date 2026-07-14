@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     musescore_path: str | None = None
     max_upload_mb: int = Field(default=250, gt=0, le=4096)
     log_level: str = "INFO"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     dependency_probe_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
 
     @field_validator("workspace_dir", mode="before")

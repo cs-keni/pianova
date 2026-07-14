@@ -60,6 +60,21 @@ def config(settings: SettingsDependency) -> ConfigResponse:
     )
 
 
+@router.get("/dependencies", response_model=list[DependencyResponse])
+def dependency_status(request: Request) -> list[DependencyResponse]:
+    dependencies: dict[str, DependencyStatus] = request.app.state.dependencies
+    return [
+        DependencyResponse(
+            name=item.name,
+            available=item.available,
+            path=item.path,
+            version=item.version,
+            error=item.error,
+        )
+        for item in dependencies.values()
+    ]
+
+
 @router.post("/projects", response_model=ProjectResponse, status_code=201)
 def create_project(
     payload: ProjectCreate,
@@ -70,7 +85,7 @@ def create_project(
 
 
 @router.post("/projects/{project_id}/upload", response_model=UploadResponse)
-async def upload_media(
+def upload_media(
     project_id: str,
     file: UploadDependency,
     session: SessionDependency,
@@ -79,9 +94,7 @@ async def upload_media(
     project = session.get(Project, project_id)
     if project is None:
         raise PianovaError("project_not_found", "The requested project does not exist.", 404)
-    artifact, stored_filename, detected_type = await UploadService(session, settings).store(
-        project, file
-    )
+    artifact, stored_filename, detected_type = UploadService(session, settings).store(project, file)
     return UploadResponse(
         project=ProjectResponse.model_validate(project),
         artifact_id=artifact.id,

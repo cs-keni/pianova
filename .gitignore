@@ -21,7 +21,7 @@ playwright-report/
 test-results/
 workspace/projects/*
 !workspace/projects/.gitkeep
-models/
+/models/
 *.wav
 *.mp3
 *.m4a

@@ -1,3 +1,4 @@
+import logging
 import shutil
 from pathlib import Path
 
@@ -7,6 +8,8 @@ from app.core.config import Settings
 from app.core.errors import PianovaError
 from app.models.entities import Project
 from app.repositories.projects import ProjectRepository
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -20,17 +23,20 @@ class ProjectService:
         if not project.title:
             raise PianovaError("invalid_title", "Project title cannot be blank.", 422)
         project_dir: Path | None = None
+        directory_created = False
         try:
             self.repository.add(project)
             project_dir = self.settings.workspace_dir / "projects" / project.id
             project_dir.mkdir(parents=True, exist_ok=False)
+            directory_created = True
             self.session.commit()
         except PianovaError:
             raise
         except Exception as error:
             self.session.rollback()
-            if project_dir is not None:
+            if directory_created and project_dir is not None:
                 shutil.rmtree(project_dir, ignore_errors=True)
+            logger.exception("Project creation failed")
             raise PianovaError(
                 "project_creation_failed",
                 "The project could not be created.",

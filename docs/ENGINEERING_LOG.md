@@ -30,3 +30,14 @@
 - Native Windows `npm ci` completed successfully against the repository lockfile. This is the supported dependency-install path while the checkout remains under `/mnt/c`.
 - Implemented the initial FastAPI/SQLite vertical-slice backend with Alembic-owned schema creation, SQLAlchemy models, structured errors, cached dependency states, explicit unfinished capability states, project creation, and secure upload storage.
 - Backend verification passed: Ruff, strict mypy across 22 source files, and 13 pytest tests using temporary migrated SQLite databases. FastAPI's test client emits one upstream Starlette deprecation warning about future `httpx2` migration.
+
+## 2026-07-14 — Connected frontend and vertical-slice completion
+
+- Replaced the starter interface with a typed Next.js health, capability, project, and upload workflow. The page reports backend connection errors and never implies that transcription begins after upload.
+- The first Playwright run exposed a real CORS gap: the backend allowed `localhost:3000` but not the equivalent `127.0.0.1:3000` origin used by the test server. Both local origins are now defaults and covered by pytest.
+- Final verification passed: Ruff; strict mypy across 24 backend source files; 24 pytest tests; Alembic upgrade and drift check; ESLint; TypeScript; four Vitest tests; Next.js production build; and two live Chromium upload flows.
+- Native npm reports two moderate advisories. No forced audit fix was applied because npm labels it as a breaking change.
+- Pre-landing review found that the broad `models/` ignore rule also matched `backend/app/models/`, which would have broken a fresh clone despite local tests passing. The rule is now root-scoped as `/models/`; always audit ignored source paths before delivery.
+- The same review corrected capability truthfulness, enabled SQLite foreign-key cascades, enforced a one-source database invariant, stored detected rather than claimed MIME, added raw multipart limits and generic structured errors, and hardened filesystem/database compensation paths.
+- Review-driven coverage raised the baseline to 24 backend tests and two live Playwright flows. The browser launcher is now platform-aware, and frontend environment overrides live in `frontend/.env.local` where Next.js loads them.
+- The one-source invariant uses follow-up Alembic revision `20260714_0002` instead of rewriting the already-applied initial migration, preserving upgrades for existing local databases.

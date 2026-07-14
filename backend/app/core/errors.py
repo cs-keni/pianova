@@ -1,8 +1,11 @@
+import logging
 from dataclasses import dataclass
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -48,6 +51,20 @@ def install_error_handlers(app: FastAPI) -> None:
                     message="The request contains invalid data.",
                     status_code=422,
                     details={"fields": safe_errors},
+                )
+            ),
+        )
+
+    @app.exception_handler(Exception)
+    async def handle_unexpected_error(_request: Request, error: Exception) -> JSONResponse:
+        logger.exception("Unhandled API error", exc_info=error)
+        return JSONResponse(
+            status_code=500,
+            content=error_payload(
+                PianovaError(
+                    code="internal_error",
+                    message="An unexpected internal error occurred.",
+                    status_code=500,
                 )
             ),
         )

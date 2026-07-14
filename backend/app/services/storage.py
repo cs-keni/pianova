@@ -1,9 +1,11 @@
+import logging
 import os
 import uuid
 from pathlib import Path
 
-import filetype  # type: ignore[import-untyped]
+import filetype  # type: ignore
 from fastapi import UploadFile
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -20,6 +22,7 @@ COMPATIBLE_SIGNATURES = {
 }
 CHUNK_SIZE = 1024 * 1024
 SIGNATURE_BYTES = 8192
+logger = logging.getLogger(__name__)
 
 
 class UploadService:
@@ -27,7 +30,13 @@ class UploadService:
         self.session = session
         self.settings = settings
 
-    async def store(self, project: Project, upload: UploadFile) -> tuple[Artifact, str, str]:
+    def store(self, project: Project, upload: UploadFile) -> tuple[Artifact, str, str]:
+        if project.status is not ProjectStatus.CREATED:
+            raise PianovaError(
+                "source_already_uploaded",
+                "This project already has a source file.",
+                409,
+            )
         original_name = Path(upload.filename or "").name
         extension = Path(original_name).suffix.lower()
         if extension not in SUPPORTED_EXTENSIONS:
@@ -50,7 +59,7 @@ class UploadService:
 
         try:
             with temporary_path.open("xb") as target:
-                while chunk := await upload.read(CHUNK_SIZE):
+                while chunk := upload.file.read(CHUNK_SIZE):
                     total_bytes += len(chunk)
                     if total_bytes > self.settings.max_upload_bytes:
                         raise PianovaError(
@@ -84,22 +93,31 @@ class UploadService:
                 size_bytes=total_bytes,
             )
             project.original_filename = original_name
-            project.media_type = upload.content_type or detected.mime
+            project.media_type = detected.mime
             project.source_size_bytes = total_bytes
             project.status = ProjectStatus.UPLOADED
             self.session.add(artifact)
             self.session.commit()
-            self.session.refresh(artifact)
             return artifact, stored_filename, detected_extension
         except PianovaError:
             self.session.rollback()
             temporary_path.unlink(missing_ok=True)
             final_path.unlink(missing_ok=True)
             raise
+        except IntegrityError as error:
+            self.session.rollback()
+            temporary_path.unlink(missing_ok=True)
+            final_path.unlink(missing_ok=True)
+            raise PianovaError(
+                "source_already_uploaded",
+                "This project already has a source file.",
+                409,
+            ) from error
         except Exception as error:
             self.session.rollback()
             temporary_path.unlink(missing_ok=True)
             final_path.unlink(missing_ok=True)
+            logger.exception("Upload storage failed for project %s", project.id)
             raise PianovaError("upload_failed", "The upload could not be stored.", 500) from error
         finally:
-            await upload.close()
+            upload.file.close()
