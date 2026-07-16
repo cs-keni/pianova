@@ -24,6 +24,27 @@ Pitch detection is not the same as readable notation. Evaluation must separate r
 
 The primary product rule is to prefer readable intent over mechanically preserving every expressive deviation.
 
+The implemented baseline estimates tempo from note-onset groups rather than re-reading audio. It
+generates bounded candidates from nearby onset intervals, scores sixteenth-grid residual plus
+rhythmic complexity and a weak 120 BPM prior, and requires absolute fit quality plus clear
+separation from the runner-up and half/double-tempo alternatives. This follows the general
+beat-tracking pattern of balancing local onset evidence against a tempo preference while keeping
+Pianova's scoring deterministic and inspectable. Librosa's beat tracker and Ellis's dynamic
+programming beat-tracking paper are reference designs, not runtime dependencies:
+[librosa beat_track](https://librosa.org/doc/latest/generated/librosa.beat.beat_track.html) and
+[Ellis 2007](https://www.ee.columbia.edu/~dpwe/pubs/Ellis07-beattrack.pdf).
+
+Quantization uses exact fractions internally and a straight sixteenth grid. The current duration
+vocabulary favors common straight and dotted values through a whole note; longer notes remain
+grid-aligned for later measure splitting. music21's configurable stream quantizer is a useful
+comparison for future tuplets and multi-divisor grids:
+[music21 quantize](https://music21.org/music21docs/moduleReference/moduleStreamBase.html).
+
+An exact 120 BPM synthetic fixture initially exposed a scoring-contract conflict: the 180 BPM
+runner-up's half-beat complexity penalty equaled the required ambiguity margin. Raising that
+penalty from 0.03 to 0.04 made the documented acceptance threshold attainable without weakening
+ambiguity protection. The regression is locked by unit and live-boundary tests.
+
 ## Datasets and evaluation sources
 
 Candidate public research corpora include MAESTRO for aligned piano audio/MIDI and MAPS for piano transcription evaluation. Licensing, permitted redistribution, splits, and format conversion must be documented before any fixture is committed. Small synthetic WAV and symbolic fixtures are sufficient for infrastructure tests.

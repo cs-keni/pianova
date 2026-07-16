@@ -112,6 +112,37 @@ def write_valid_worker_outputs(command: list[str]) -> None:
     midi_path.write_bytes(b"MThd\x00\x00\x00\x06")
 
 
+def create_note_project(
+    client: TestClient,
+    notes: list[tuple[int, float, float]],
+    *,
+    title: str,
+) -> dict[str, object]:
+    project = client.post("/api/projects", json={"title": title}).json()
+    with client.app.state.session_factory() as session:
+        session.add(
+            Artifact(
+                project_id=project["id"],
+                kind=ArtifactKind.NOTE_EVENTS,
+                relative_path=f"projects/{project['id']}/note-events-test.json",
+                size_bytes=1,
+            )
+        )
+        session.add_all(
+            NoteEvent(
+                project_id=project["id"],
+                pitch=pitch,
+                velocity=90,
+                raw_start_seconds=start,
+                raw_end_seconds=end,
+                confidence=0.9,
+            )
+            for pitch, start, end in notes
+        )
+        session.commit()
+    return project
+
+
 def test_signature_failure_removes_temporary_files(client: TestClient, settings: Settings) -> None:
     project = client.post("/api/projects", json={"title": "Cleanup"}).json()
 
@@ -650,4 +681,155 @@ def test_transcription_commit_failure_removes_artifacts_and_notes(
                 )
             )
             == 0
+        )
+
+
+def test_quantization_requires_transcription(client: TestClient) -> None:
+    project = client.post("/api/projects", json={"title": "No transcription"}).json()
+
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "transcription_required"
+
+
+def test_quantization_rejects_empty_and_ambiguous_note_evidence(client: TestClient) -> None:
+    empty = create_note_project(client, [], title="Empty notes")
+    sparse = create_note_project(
+        client,
+        [(60, 0.0, 0.4), (64, 0.5, 0.9), (67, 1.0, 1.4)],
+        title="Sparse notes",
+    )
+
+    empty_response = client.post(f"/api/projects/{empty['id']}/quantize", json={})
+    sparse_response = client.post(f"/api/projects/{sparse['id']}/quantize", json={})
+
+    assert empty_response.status_code == 422
+    assert empty_response.json()["error"]["code"] == "notes_required"
+    assert sparse_response.status_code == 422
+    assert sparse_response.json()["error"]["code"] == "tempo_ambiguous"
+    with client.app.state.session_factory() as session:
+        run = session.scalar(
+            select(ProcessingRun).where(
+                ProcessingRun.project_id == sparse["id"],
+                ProcessingRun.stage == "quantization",
+            )
+        )
+        assert run is not None
+        assert run.status is ProcessingStatus.FAILED
+
+
+def test_quantization_commit_failure_preserves_previous_symbolic_result(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = create_note_project(
+        client,
+        [
+            (60, 0.0, 0.4),
+            (62, 0.5, 0.9),
+            (64, 1.0, 1.4),
+            (65, 1.5, 1.9),
+        ],
+        title="Quantization rollback",
+    )
+    first = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    assert first.status_code == 200
+    first_run_id = first.json()["provenance"]["run_id"]
+    original_commit = Session.commit
+    commit_count = 0
+
+    def fail_success_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated quantization commit failure")
+        original_commit(session)
+
+    monkeypatch.setattr(Session, "commit", fail_success_commit)
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 90},
+    )
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "quantization_failed"
+    with client.app.state.session_factory() as session:
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        assert stored_project.selected_tempo_bpm == 120
+        assert stored_project.current_quantization_run_id == first_run_id
+        assert stored_project.quantization_revision == 1
+        notes = tuple(
+            session.scalars(
+                select(NoteEvent)
+                .where(NoteEvent.project_id == project["id"])
+                .order_by(NoteEvent.id)
+            )
+        )
+        assert [note.symbolic_start_beats for note in notes] == [0.0, 1.0, 2.0, 3.0]
+        latest_run = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "quantization",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest_run is not None
+        assert latest_run.status is ProcessingStatus.FAILED
+
+
+def test_quantization_conflict_rolls_back_symbolic_changes(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = create_note_project(
+        client,
+        [
+            (60, 0.0, 0.4),
+            (62, 0.5, 0.9),
+            (64, 1.0, 1.4),
+            (65, 1.5, 1.9),
+        ],
+        title="Quantization conflict",
+    )
+    from app.services import quantization as quantization_module
+
+    original_quantize_timing = quantization_module.quantize_timing
+
+    def concurrent_quantize(*args: object, **kwargs: object) -> object:
+        result = original_quantize_timing(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            stored.quantization_revision += 1
+            other_session.commit()
+        return result
+
+    monkeypatch.setattr(quantization_module, "quantize_timing", concurrent_quantize)
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "quantization_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_quantization_run_id is None
+        assert stored.selected_tempo_bpm is None
+        assert all(
+            note.symbolic_start_beats is None
+            for note in session.scalars(
+                select(NoteEvent).where(NoteEvent.project_id == project["id"])
+            )
         )

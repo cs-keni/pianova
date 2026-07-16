@@ -1,9 +1,16 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.capabilities import Capability
-from app.models.entities import ArtifactKind, DetectionSource, MediaStreamType, ProjectStatus
+from app.models.entities import (
+    ArtifactKind,
+    DetectionSource,
+    MediaStreamType,
+    ProjectStatus,
+    SettingSource,
+    TempoSource,
+)
 
 
 class DependencyResponse(BaseModel):
@@ -61,6 +68,16 @@ class ProjectResponse(BaseModel):
     duration_seconds: float | None
     container_format: str | None
     source_bit_rate: int | None
+    estimated_tempo_bpm: float | None
+    selected_tempo_bpm: float | None
+    tempo_source: TempoSource | None
+    measure_origin_seconds: float | None
+    measure_origin_source: SettingSource | None
+    meter_numerator: int | None
+    meter_denominator: int | None
+    meter_source: SettingSource | None
+    current_quantization_run_id: int | None
+    quantization_revision: int
     media_streams: list[MediaStreamResponse]
     created_at: datetime
     updated_at: datetime
@@ -115,4 +132,67 @@ class TranscriptionResponse(BaseModel):
     note_count: int
     preview_notes: list[NoteEventResponse]
     provenance: TranscriptionProvenanceResponse
+    reused: bool
+
+
+class QuantizationRequest(BaseModel):
+    tempo_bpm: float | None = Field(default=None, gt=0, le=400)
+    meter_numerator: int | None = Field(default=None)
+    meter_denominator: int | None = Field(default=None)
+    measure_origin_seconds: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_meter(self) -> "QuantizationRequest":
+        if (self.meter_numerator is None) != (self.meter_denominator is None):
+            raise ValueError("Meter numerator and denominator must be provided together.")
+        if self.meter_numerator is not None and (
+            self.meter_numerator,
+            self.meter_denominator,
+        ) not in {(2, 4), (3, 4), (4, 4)}:
+            raise ValueError("Supported meters are 2/4, 3/4, and 4/4.")
+        return self
+
+
+class TempoEstimateDiagnosticsResponse(BaseModel):
+    candidate_bpm: float | None
+    residual: float | None
+    inlier_coverage: float | None
+    winning_score: float | None
+    runner_up_score: float | None
+    score_margin: float | None
+    chord_group_count: int
+    onset_span_seconds: float
+    octave_ambiguous: bool
+
+
+class QuantizedNoteResponse(BaseModel):
+    id: int
+    pitch: int
+    velocity: int
+    raw_start_seconds: float
+    raw_end_seconds: float
+    symbolic_start_beats: float
+    symbolic_duration_beats: float
+    chord_group: int
+    measure_number: int
+    beat_in_measure: float
+    confidence: float | None
+    source: DetectionSource
+
+
+class QuantizationProvenanceResponse(BaseModel):
+    run_id: int
+    processor_name: str
+    processor_version: str
+    runtime: str
+    input_fingerprint: str
+    configuration: dict[str, object]
+
+
+class QuantizationResponse(BaseModel):
+    project: ProjectResponse
+    note_count: int
+    preview_notes: list[QuantizedNoteResponse]
+    diagnostics: TempoEstimateDiagnosticsResponse
+    provenance: QuantizationProvenanceResponse
     reused: bool

@@ -1,6 +1,6 @@
 # Processing Pipeline
 
-The current product implements secure ingestion, typed media preparation, and raw Basic Pitch transcription. Every later symbolic stage remains a separate typed boundary and must fail explicitly until implemented.
+The current product implements secure ingestion, typed media preparation, raw Basic Pitch transcription, and a conservative readable-timing baseline. Every later score-interpretation stage remains a separate typed boundary and must fail explicitly until implemented.
 
 | Stage | Input | Output/artifact | Main failure modes | Status |
 |---|---|---|---|---|
@@ -11,7 +11,8 @@ The current product implements secure ingestion, typed media preparation, and ra
 | Audio normalization | Valid inspected media | Mono 22.05 kHz PCM WAV artifact | Missing FFmpeg, codec failure, timeout, disk or commit failure | Implemented |
 | Transcription | Normalized WAV | Raw typed note events | Missing worker, model load/inference failure, timeout, malformed output | Implemented |
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
-| Symbolic cleanup | Raw timing and pitch | Tempo, beats, quantized notes, hands, voices | Ambiguous rhythm, meter, hand, or spelling | Not implemented |
+| Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
+| Hands, staves, voices, spelling | Quantized notes | Structured score events | Ambiguous hand, voice, or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
 | User correction | Note events and score state | Revised symbolic score and artifacts | Invalid edits or regeneration failure | Not implemented |
@@ -36,6 +37,24 @@ FFmpeg maps the first audio stream, removes video, and writes mono 22.05 kHz 16-
 
 The worker writes versioned note-event JSON and raw MIDI to temporary paths. Pianova validates the schema and Basic Pitch provenance, atomically finalizes both artifacts, persists raw `NoteEvent` rows plus model/runtime/configuration metadata, and completes the ProcessingRun in one database transaction. Timeouts, inference failures, malformed output, finalization failures, and commit failures clean up generated files and remain retryable. Repeated successful requests reuse the existing note-event JSON and raw MIDI.
 
+## Implemented quantization contract
+
+`POST /api/projects/{project_id}/quantize` requires persisted note events. It groups attacks within
+60 ms, estimates one quarter-note BPM from bounded onset intervals, and accepts automatic tempo
+only when group count, span, residual, inlier coverage, winner separation, and half/double-tempo
+gates all pass. An explicit BPM bypasses automatic fit acceptance while retaining diagnostics.
+
+The baseline supports `2/4`, `3/4`, and `4/4`; omitted meter defaults to `4/4`. Measure origin
+defaults to the first chord attack and can be overridden explicitly. Onsets and durations use exact
+fractions internally, snap to a straight sixteenth-note grid, favor readable straight/dotted values,
+and never alter raw timing. Same-pitch overlap repair is bounded and otherwise returns
+`rhythm_too_dense`.
+
+Processing uses a raw-note fingerprint, effective configuration, and algorithm version for
+idempotent reuse. A running audit row is precommitted; success atomically updates project timing,
+note symbolic fields, the current-run pointer, and an optimistic revision. Failures and concurrent
+losers preserve the prior complete symbolic result.
+
 ## Generated artifacts
 
 All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Source, normalized-audio, note-event JSON, and raw-MIDI artifacts are currently produced.
@@ -57,6 +76,14 @@ All artifact kinds are reserved in the schema: source, normalized audio, note-ev
 - `PIANOVA_TRANSCRIPTION_ONSET_THRESHOLD`, `PIANOVA_TRANSCRIPTION_FRAME_THRESHOLD`: Basic Pitch detection thresholds.
 - `PIANOVA_TRANSCRIPTION_MINIMUM_NOTE_LENGTH_MS`: minimum emitted note length, default 127.7 ms.
 - `PIANOVA_TRANSCRIPTION_MINIMUM_FREQUENCY_HZ`, `PIANOVA_TRANSCRIPTION_MAXIMUM_FREQUENCY_HZ`: piano-range frequency bounds.
+- `PIANOVA_QUANTIZATION_MINIMUM_BPM`, `PIANOVA_QUANTIZATION_MAXIMUM_BPM`: automatic/override BPM range.
+- `PIANOVA_QUANTIZATION_CHORD_TOLERANCE_MS`, `PIANOVA_QUANTIZATION_MINIMUM_GRID_BEATS`: grouping and straight-grid resolution.
+- `PIANOVA_QUANTIZATION_MINIMUM_TEMPO_GROUPS`, `PIANOVA_QUANTIZATION_MINIMUM_TEMPO_SPAN_SECONDS`: absolute evidence gates.
+- `PIANOVA_QUANTIZATION_MAXIMUM_RESIDUAL`, `PIANOVA_QUANTIZATION_MINIMUM_INLIER_COVERAGE`, `PIANOVA_QUANTIZATION_INLIER_RESIDUAL`: fit-quality gates.
+- `PIANOVA_QUANTIZATION_DISTINCT_TEMPO_RATIO`: same-pulse candidate neighborhood, default 2%.
+- `PIANOVA_QUANTIZATION_AMBIGUITY_MARGIN`, `PIANOVA_QUANTIZATION_OCTAVE_AMBIGUITY_MARGIN`: distinct-winner and half/double-tempo separation.
+- `PIANOVA_QUANTIZATION_REST_TOLERANCE_BEATS`, `PIANOVA_QUANTIZATION_SAME_PITCH_REPAIR_TOLERANCE_BEATS`: readable-duration and collision bounds.
+- `PIANOVA_QUANTIZATION_PREVIEW_NOTE_LIMIT`, `PIANOVA_QUANTIZATION_ALGORITHM_VERSION`: response bound and reuse identity.
 - `PIANOVA_DATABASE_URL`: SQLite or another SQLAlchemy URL.
 
 Related: [architecture](architecture.md), [data model](data-model.md), and the root [run guide](../README.md#run-pianova).

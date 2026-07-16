@@ -8,6 +8,7 @@ import {
   type ConfigResponse,
   type HealthResponse,
   type Project,
+  type QuantizationResponse,
   type TranscriptionResponse,
 } from "@/lib/api";
 
@@ -46,6 +47,11 @@ export default function Home() {
   const [processing, setProcessing] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [transcription, setTranscription] = useState<TranscriptionResponse | null>(null);
+  const [quantizing, setQuantizing] = useState(false);
+  const [quantization, setQuantization] = useState<QuantizationResponse | null>(null);
+  const [tempoOverride, setTempoOverride] = useState("");
+  const [meter, setMeter] = useState("4/4");
+  const [measureOrigin, setMeasureOrigin] = useState("");
 
   async function loadStatus() {
     try {
@@ -137,6 +143,30 @@ export default function Home() {
     }
   }
 
+  async function quantizeProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project || quantizing) return;
+    const [meterNumerator] = meter.split("/").map(Number);
+    const tempo = tempoOverride.trim() ? Number(tempoOverride) : undefined;
+    const origin = measureOrigin.trim() ? Number(measureOrigin) : undefined;
+    setQuantizing(true);
+    setFormError(null);
+    try {
+      const response = await api.quantize(project.id, {
+        tempo_bpm: tempo,
+        meter_numerator: meterNumerator as 2 | 3 | 4,
+        meter_denominator: 4,
+        measure_origin_seconds: origin,
+      });
+      setProject(response.project);
+      setQuantization(response);
+    } catch (error) {
+      setFormError(errorMessage(error));
+    } finally {
+      setQuantizing(false);
+    }
+  }
+
   const mediaCapability = health?.capabilities.find(
     (capability) => capability.key === "media_normalization",
   );
@@ -191,10 +221,14 @@ export default function Home() {
           <div className={styles.sectionHeading}>
             <div>
               <p className={styles.step}>
-                Step {transcription ? "4" : mediaReady ? "3" : project ? "2" : "1"} of 4
+                Step{" "}
+                {quantization ? "5" : transcription ? "4" : mediaReady ? "3" : project ? "2" : "1"}{" "}
+                of 5
               </p>
               <h3 id="workflow-title">
-                {transcription
+                {quantization
+                  ? "Readable timing ready"
+                  : transcription
                   ? "Raw transcription ready"
                   : mediaReady
                   ? "Media ready"
@@ -224,6 +258,82 @@ export default function Home() {
                 {creating ? "Creating…" : "Create local project"}
               </button>
             </form>
+          ) : quantization ? (
+            <div className={styles.quantizationResult} role="status">
+              <div className={styles.success}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h4>Readable timing ready</h4>
+                  <p>
+                    {quantization.project.selected_tempo_bpm?.toFixed(1)} BPM ·{" "}
+                    {quantization.project.meter_numerator}/
+                    {quantization.project.meter_denominator} ·{" "}
+                    {quantization.project.tempo_source === "estimated"
+                      ? "estimated tempo"
+                      : "tempo override"}
+                  </p>
+                  <p>
+                    Raw timing is preserved. Hands, voices, and score generation have not started.
+                  </p>
+                </div>
+              </div>
+              <dl className={styles.timingDiagnostics}>
+                <div>
+                  <dt>Chord groups</dt>
+                  <dd>{quantization.diagnostics.chord_group_count}</dd>
+                </div>
+                <div>
+                  <dt>Fit coverage</dt>
+                  <dd>
+                    {quantization.diagnostics.inlier_coverage == null
+                      ? "Override"
+                      : `${Math.round(quantization.diagnostics.inlier_coverage * 100)}%`}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Measure origin</dt>
+                  <dd>
+                    {quantization.project.measure_origin_seconds?.toFixed(2)}s ·{" "}
+                    {quantization.project.measure_origin_source}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Processor</dt>
+                  <dd>{quantization.provenance.processor_version}</dd>
+                </div>
+              </dl>
+              <div className={styles.notePreview}>
+                <h4>Symbolic timing preview</h4>
+                <div className={styles.noteTableWrap}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pitch</th>
+                        <th>Raw onset</th>
+                        <th>Measure / beat</th>
+                        <th>Grid onset</th>
+                        <th>Grid duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quantization.preview_notes.map((note) => (
+                        <tr key={note.id}>
+                          <td>
+                            {formatPitch(note.pitch)} <small>MIDI {note.pitch}</small>
+                          </td>
+                          <td>{note.raw_start_seconds.toFixed(2)}s</td>
+                          <td>
+                            M{note.measure_number} · beat {note.beat_in_measure.toFixed(2)}
+                          </td>
+                          <td>{note.symbolic_start_beats.toFixed(2)}</td>
+                          <td>{note.symbolic_duration_beats.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           ) : transcription ? (
             <div className={styles.transcriptionResult} role="status">
               <div className={styles.success}>
@@ -276,6 +386,52 @@ export default function Home() {
               ) : (
                 <p className={styles.emptyNotes}>No notes were detected in this source.</p>
               )}
+              <form className={styles.quantizationForm} onSubmit={quantizeProject}>
+                <div>
+                  <label htmlFor="tempo-override">Tempo override (BPM)</label>
+                  <input
+                    id="tempo-override"
+                    type="number"
+                    min="40"
+                    max="200"
+                    step="0.1"
+                    value={tempoOverride}
+                    onChange={(event) => setTempoOverride(event.target.value)}
+                    placeholder="Auto estimate"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="meter">Meter</label>
+                  <select
+                    id="meter"
+                    value={meter}
+                    onChange={(event) => setMeter(event.target.value)}
+                  >
+                    <option value="4/4">4/4</option>
+                    <option value="3/4">3/4</option>
+                    <option value="2/4">2/4</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="measure-origin">Measure origin (seconds)</label>
+                  <input
+                    id="measure-origin"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={measureOrigin}
+                    onChange={(event) => setMeasureOrigin(event.target.value)}
+                    placeholder="First detected attack"
+                  />
+                </div>
+                <p className={styles.help}>
+                  Leave tempo blank to estimate it. If the pulse is ambiguous, Pianova will ask
+                  for BPM without changing the raw transcription.
+                </p>
+                <button className={styles.primaryButton} disabled={quantizing}>
+                  {quantizing ? "Estimating and quantizing…" : "Estimate tempo and quantize"}
+                </button>
+              </form>
             </div>
           ) : mediaReady ? (
             <div className={styles.mediaResult} role="status">

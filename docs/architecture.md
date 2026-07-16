@@ -9,7 +9,7 @@ Next.js browser UI
   | typed JSON and multipart HTTP
   v
 FastAPI routes
-  |-- services: project lifecycle, storage, media preparation, transcription orchestration
+  |-- services: project lifecycle, storage, media preparation, transcription, symbolic timing
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
   v
@@ -73,6 +73,22 @@ transcription unavailable; project creation, uploads, and media preparation cont
 Successful repeat calls reuse both raw artifacts. Failed calls remove all partial/final output and
 remain retryable.
 
+Quantization stays inside the lightweight FastAPI process and consumes only persisted note evidence:
+
+```text
+ordered raw NoteEvent rows
+  -> non-chaining onset/chord grouping
+  -> bounded global-tempo candidate generation and fit gates, or explicit BPM override
+  -> exact Fraction-based onset and duration quantization
+  -> optimistic Project revision compare-and-swap
+  -> commit Project timing, NoteEvent symbolic fields, and successful ProcessingRun
+```
+
+The pure `app.symbolic.timing` module has no database, filesystem, frontend, subprocess, or ML
+dependencies. Raw seconds remain immutable evidence. Project timing and note symbolic fields are
+recomputed together, and the project points at the run that produced its current result. A failed or
+concurrent recomputation rolls back without damaging the prior symbolic state.
+
 ## External executables
 
 FFmpeg, FFprobe, and MuseScore are configured by optional explicit paths or normal executable discovery. Startup probes use argument lists and bounded timeouts; the cached paths feed the capability registry and media service. Media subprocesses use separate configurable inspection and normalization timeouts.
@@ -103,5 +119,6 @@ ordinary API tests and startup when the optional environment is absent.
 - Cached dependency states avoid repeated subprocess cost, but executable changes require an application restart.
 - Synchronous normalization is simple and visible but holds one API request open; a local worker remains deferred until real file durations justify it.
 - A fresh transcription process isolates failures but reloads TensorFlow for each project. A persistent local worker is deferred until measured throughput justifies its lifecycle complexity.
+- One global tempo and straight sixteenth-note grid provide a testable baseline, but rubato maps, swing, tuplets, compound meter, and inferred downbeats require later evidence and UX.
 
 Related: [pipeline](pipeline.md), [data model](data-model.md), and [roadmap](roadmap.md).

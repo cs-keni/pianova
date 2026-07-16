@@ -22,6 +22,12 @@ const health = {
       state: "available",
       reason: "Basic Pitch transcription and raw MIDI generation are ready.",
     },
+    {
+      key: "quantization",
+      label: "Tempo and rhythm quantization",
+      state: "available",
+      reason: "Global tempo estimation and readable straight-note quantization are ready.",
+    },
   ],
 };
 
@@ -41,6 +47,16 @@ const project = {
   duration_seconds: null,
   container_format: null,
   source_bit_rate: null,
+  estimated_tempo_bpm: null,
+  selected_tempo_bpm: null,
+  tempo_source: null,
+  measure_origin_seconds: null,
+  measure_origin_source: null,
+  meter_numerator: null,
+  meter_denominator: null,
+  meter_source: null,
+  current_quantization_run_id: null,
+  quantization_revision: 0,
   media_streams: [],
   created_at: "2026-07-14T00:00:00Z",
   updated_at: "2026-07-14T00:00:00Z",
@@ -72,7 +88,8 @@ describe("Pianova home", () => {
     expect(await screen.findByText("API connected")).toBeInTheDocument();
     expect(screen.getByText("Media normalization")).toBeInTheDocument();
     expect(screen.getByText("Piano transcription")).toBeInTheDocument();
-    expect(screen.getAllByText("available")).toHaveLength(2);
+    expect(screen.getByText("Tempo and rhythm quantization")).toBeInTheDocument();
+    expect(screen.getAllByText("available")).toHaveLength(3);
   });
 
   it("creates a project once and advances to upload", async () => {
@@ -171,6 +188,20 @@ describe("Pianova home", () => {
         },
       ],
     };
+    const quantizedProject = {
+      ...processedProject,
+      estimated_tempo_bpm: null,
+      selected_tempo_bpm: 120,
+      tempo_source: "override",
+      measure_origin_seconds: 0.02,
+      measure_origin_source: "default",
+      meter_numerator: 3,
+      meter_denominator: 4,
+      meter_source: "override",
+      current_quantization_run_id: 3,
+      quantization_revision: 1,
+    };
+    let quantizationAttempts = 0;
     vi.mocked(fetch).mockImplementation((input) => {
       const url = input.toString();
       if (url.endsWith("/api/health")) return Promise.resolve(jsonResponse(health));
@@ -245,6 +276,65 @@ describe("Pianova home", () => {
           }),
         );
       }
+      if (url.endsWith("/api/projects/project-1/quantize")) {
+        quantizationAttempts += 1;
+        if (quantizationAttempts === 1) {
+          return Promise.resolve(
+            jsonResponse(
+              {
+                error: {
+                  code: "tempo_ambiguous",
+                  message: "Automatic tempo is uncertain. Enter a BPM to continue.",
+                  details: {},
+                },
+              },
+              422,
+            ),
+          );
+        }
+        return Promise.resolve(
+          jsonResponse({
+            project: quantizedProject,
+            note_count: 1,
+            preview_notes: [
+              {
+                id: 1,
+                pitch: 69,
+                velocity: 74,
+                raw_start_seconds: 0.02,
+                raw_end_seconds: 0.23,
+                symbolic_start_beats: 0,
+                symbolic_duration_beats: 0.5,
+                chord_group: 1,
+                measure_number: 1,
+                beat_in_measure: 1,
+                confidence: 0.58,
+                source: "audio",
+              },
+            ],
+            diagnostics: {
+              candidate_bpm: null,
+              residual: null,
+              inlier_coverage: null,
+              winning_score: null,
+              runner_up_score: null,
+              score_margin: null,
+              chord_group_count: 1,
+              onset_span_seconds: 0,
+              octave_ambiguous: false,
+            },
+            provenance: {
+              run_id: 3,
+              processor_name: "pianova_symbolic_timing",
+              processor_version: "1.0.0",
+              runtime: "python 3.11.9",
+              input_fingerprint: "abc123",
+              configuration: {},
+            },
+            reused: false,
+          }),
+        );
+      }
       return Promise.reject(new Error(`Unexpected request: ${url}`));
     });
     const user = userEvent.setup();
@@ -275,5 +365,22 @@ describe("Pianova home", () => {
     expect(
       screen.getByText("Raw MIDI and note-event JSON are saved. Quantization has not started."),
     ).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Meter"), "3/4");
+    await user.click(screen.getByRole("button", { name: "Estimate tempo and quantize" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Automatic tempo is uncertain. Enter a BPM to continue.",
+    );
+    expect(screen.getByLabelText("Meter")).toHaveValue("3/4");
+    await user.type(screen.getByLabelText("Tempo override (BPM)"), "120");
+    await user.click(screen.getByRole("button", { name: "Estimate tempo and quantize" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Readable timing ready", level: 4 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("120.0 BPM · 3/4 · tempo override")).toBeInTheDocument();
+    expect(screen.getByText("M1 · beat 1.00")).toBeInTheDocument();
+    expect(screen.getByText("Override")).toBeInTheDocument();
+    expect(quantizationAttempts).toBe(2);
   });
 });

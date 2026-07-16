@@ -6,7 +6,7 @@ Pianova is built as verified vertical slices. A milestone is complete only when 
 2. **Project and secure upload: complete.** Migrated SQLite models, capabilities, project creation, signature validation, atomic storage, component tests, and live browser coverage.
 3. **Media inspection and normalized WAV: complete.** FFprobe metadata, duration and stream display, FFmpeg extraction/normalization, artifact records, retries, cleanup, and live browser coverage.
 4. **Basic transcription: complete.** Isolated Basic Pitch/TensorFlow worker, dependency-backed capability, typed raw note events, model/config provenance, note-event JSON, raw MIDI, retry-safe cleanup, and live browser coverage.
-5. **Tempo and readable quantization.** Beat grid, meter, chord grouping, simpler rhythm preference, and evaluation fixtures.
+5. **Tempo and readable quantization: complete.** Conservative global tempo estimation, BPM recovery, simple meter, explicit measure origin, chord grouping, exact-fraction straight-note quantization, diagnostics, concurrency-safe persistence, and live Basic Pitch coverage.
 6. **Hands, staves, voices, and spelling.** Initial heuristics with user-visible uncertainty and deterministic tests.
 7. **MusicXML and optional rendering.** Editable MusicXML first; MuseScore PDF/SVG degrades independently.
 8. **Inspection and correction.** Note table, piano roll, synchronized playback, edits, and artifact regeneration.

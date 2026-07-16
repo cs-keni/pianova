@@ -61,3 +61,15 @@
 - Basic Pitch 0.4.0 crashes on a 0.01-second WAV because its analysis array is empty. A loaded-model experiment showed 0.05 seconds returns a valid empty result, so Pianova rejects inputs below 0.05 seconds before worker startup and covers the boundary with a regression test.
 - The frontend exposes explicit transcription and a bounded raw-note preview while stating that quantization has not started.
 - Verification baseline is now 43 backend tests, five component tests, a clean production build, and three live Chromium flows. The primary browser flow performs real FFprobe, FFmpeg, and Basic Pitch/TensorFlow processing.
+
+## 2026-07-16 — Tempo estimation and readable quantization
+
+- Alembic revision `20260716_0005` adds nullable complete project timing metadata, simple-meter checks, positive chord groups, a current quantization-run pointer, and a non-negative optimistic revision.
+- The pure symbolic module groups attacks without tolerance chaining, builds candidates from at most four following groups, scores sixteenth-grid fit/readability/tempo prior, and rejects insufficient, weak, close-runner, or half/double-tempo evidence.
+- Exact 120 BPM initially failed because the half-beat complexity penalty (0.03) equaled the winner-separation margin. Raising it to 0.04 made the acceptance contract internally attainable while retaining the octave ambiguity gate; a regression test locks this relationship.
+- The real Basic Pitch fixture then exposed that 0.1-BPM candidate buckets can produce several near-identical winners from frame-level onset jitter. Runner-up ambiguity now ignores candidates within a persisted 2% tempo neighborhood; distinct and half/double candidates still face the original score gates.
+- Onsets and durations use `Fraction` internally. Raw seconds are immutable; durations follow one fixed simplify/snap/cap/minimum order, and same-pitch collision repair is bounded.
+- Quantization precommits a running audit row, fingerprints ordered raw evidence, reuses only the current matching result, and atomically compare-and-swaps project timing plus all note symbolic fields. Failure and concurrent-loser paths preserve the prior complete state.
+- The frontend exposes automatic tempo, BPM recovery, `2/4`/`3/4`/`4/4`, explicit measure origin, fit diagnostics, and symbolic preview while clearly deferring hands, voices, and score generation.
+- The live fixture uses five distinct piano tones whose attacks are adjusted for Basic Pitch analysis-frame rounding. The real worker must emit a pulse accepted within 119.5-120.5 BPM; this is an integration contract, not a musical benchmark.
+- Verification baseline is now 62 backend tests, five component tests, a clean production build, and three live Chromium flows.

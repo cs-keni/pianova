@@ -50,11 +50,21 @@ Infrastructure tests use generated fixtures. Model benchmarks and musical-qualit
 
 ## Current baseline
 
-No musical-accuracy baseline exists yet because the repository has no license-reviewed reference corpus. The current vertical-slice baseline is operational: 43 backend tests, five frontend component tests, a production build, and three live Playwright flows. Native Windows FFprobe/FFmpeg inspect and normalize generated WAV and MP4 fixtures; the primary audio flow also runs real Basic Pitch 0.4.0/TensorFlow 2.15 inference and verifies raw note-event JSON plus MIDI. The rejection flow blocks mismatched contents.
+No broad musical-accuracy baseline exists yet because the repository has no license-reviewed
+reference corpus. The current quantization baseline is deterministic and operational: pure tests
+cover chord grouping, exact 120 BPM acceptance, ambiguity, overrides, pickups, duration ordering,
+same-pitch repair, and dense-rhythm rejection; API tests cover persistence, reuse/recompute,
+validation, rollback, and optimistic-concurrency failure.
+
+The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
+normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
+accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing. This proves
+the real transcription-to-estimator boundary, not general piano accuracy.
 
 ## Known limitations
 
 - The generated transcription fixture proves orchestration and artifact correctness, not musical accuracy.
+- One global straight-grid fixture does not evaluate rubato, swing, tuplets, ornamentation, compound meter, or downbeat inference.
 - Public piano datasets may not represent phone recordings, room acoustics, rubato, or modern Synthesia videos.
 - A single tolerance can hide musically different errors; publish thresholds with every score.
 - Readability requires human judgment alongside automated metrics.

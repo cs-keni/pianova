@@ -46,6 +46,12 @@ def build_capabilities(
             ),
         ),
         Capability(
+            key="quantization",
+            label="Tempo and rhythm quantization",
+            state=CapabilityState.AVAILABLE,
+            reason="Global tempo estimation and readable straight-note quantization are ready.",
+        ),
+        Capability(
             key="musicxml",
             label="MusicXML generation",
             state=CapabilityState.NOT_IMPLEMENTED,

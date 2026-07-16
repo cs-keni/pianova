@@ -31,6 +31,16 @@ class DetectionSource(enum.StrEnum):
     MANUAL = "manual"
 
 
+class TempoSource(enum.StrEnum):
+    ESTIMATED = "estimated"
+    OVERRIDE = "override"
+
+
+class SettingSource(enum.StrEnum):
+    DEFAULT = "default"
+    OVERRIDE = "override"
+
+
 class ArtifactKind(enum.StrEnum):
     SOURCE = "source"
     NORMALIZED_AUDIO = "normalized_audio"
@@ -68,6 +78,22 @@ class Project(Base):
     duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     container_format: Mapped[str | None] = mapped_column(String(200), nullable=True)
     source_bit_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    estimated_tempo_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    selected_tempo_bpm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tempo_source: Mapped[TempoSource | None] = mapped_column(
+        Enum(TempoSource, native_enum=False), nullable=True
+    )
+    measure_origin_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    measure_origin_source: Mapped[SettingSource | None] = mapped_column(
+        Enum(SettingSource, native_enum=False), nullable=True
+    )
+    meter_numerator: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    meter_denominator: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    meter_source: Mapped[SettingSource | None] = mapped_column(
+        Enum(SettingSource, native_enum=False), nullable=True
+    )
+    current_quantization_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    quantization_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -103,6 +129,7 @@ class NoteEvent(Base):
     pitch_bends_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     symbolic_start_beats: Mapped[float | None] = mapped_column(Float, nullable=True)
     symbolic_duration_beats: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chord_group: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hand: Mapped[Hand] = mapped_column(Enum(Hand, native_enum=False), default=Hand.UNKNOWN)
     source: Mapped[DetectionSource] = mapped_column(
         Enum(DetectionSource, native_enum=False), default=DetectionSource.AUDIO

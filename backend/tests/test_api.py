@@ -9,6 +9,37 @@ from sqlalchemy import func, select
 from app.models.entities import Artifact, ArtifactKind, NoteEvent, ProcessingRun
 
 
+def create_note_project(
+    client: TestClient,
+    notes: list[tuple[int, float, float]],
+    *,
+    title: str = "Quantization",
+) -> dict[str, object]:
+    project = client.post("/api/projects", json={"title": title}).json()
+    with client.app.state.session_factory() as session:
+        session.add(
+            Artifact(
+                project_id=project["id"],
+                kind=ArtifactKind.NOTE_EVENTS,
+                relative_path=f"projects/{project['id']}/note-events-test.json",
+                size_bytes=1,
+            )
+        )
+        session.add_all(
+            NoteEvent(
+                project_id=project["id"],
+                pitch=pitch,
+                velocity=90,
+                raw_start_seconds=start,
+                raw_end_seconds=end,
+                confidence=0.9,
+            )
+            for pitch, start, end in notes
+        )
+        session.commit()
+    return project
+
+
 def test_health_reports_media_capability_and_unfinished_stages(client: TestClient) -> None:
     response = client.get("/api/health")
 
@@ -399,3 +430,130 @@ def test_transcribe_requires_normalized_audio(
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "normalized_audio_required"
+
+
+def test_quantize_estimates_tempo_persists_symbolic_notes_and_reuses(
+    client: TestClient,
+) -> None:
+    project = create_note_project(
+        client,
+        [
+            (60, 0.0, 0.4),
+            (62, 0.5, 0.9),
+            (64, 1.0, 1.4),
+            (65, 1.5, 1.9),
+            (67, 2.0, 2.4),
+        ],
+    )
+
+    first = client.post(f"/api/projects/{project['id']}/quantize", json={})
+    second = client.post(f"/api/projects/{project['id']}/quantize", json={})
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["reused"] is False
+    assert body["note_count"] == 5
+    assert body["project"]["selected_tempo_bpm"] == pytest.approx(120, abs=0.1)
+    assert body["project"]["tempo_source"] == "estimated"
+    assert body["project"]["meter_numerator"] == 4
+    assert body["project"]["meter_denominator"] == 4
+    assert body["project"]["quantization_revision"] == 1
+    assert body["diagnostics"]["residual"] == pytest.approx(0)
+    assert body["diagnostics"]["inlier_coverage"] == pytest.approx(1)
+    assert body["preview_notes"][0]["symbolic_start_beats"] == 0
+    assert body["preview_notes"][1]["symbolic_start_beats"] == 1
+    assert body["provenance"]["processor_name"] == "pianova_symbolic_timing"
+    assert second.status_code == 200
+    assert second.json()["reused"] is True
+    assert second.json()["provenance"]["run_id"] == body["provenance"]["run_id"]
+
+    with client.app.state.session_factory() as session:
+        stored_notes = tuple(
+            session.scalars(
+                select(NoteEvent)
+                .where(NoteEvent.project_id == project["id"])
+                .order_by(NoteEvent.id)
+            )
+        )
+        assert [note.raw_start_seconds for note in stored_notes] == [0.0, 0.5, 1.0, 1.5, 2.0]
+        assert [note.symbolic_start_beats for note in stored_notes] == [0.0, 1.0, 2.0, 3.0, 4.0]
+        assert all(note.chord_group is not None for note in stored_notes)
+        assert (
+            session.scalar(
+                select(func.count(ProcessingRun.id)).where(ProcessingRun.stage == "quantization")
+            )
+            == 1
+        )
+
+
+def test_quantize_changed_override_recomputes_only_symbolic_state(
+    client: TestClient,
+) -> None:
+    project = create_note_project(
+        client,
+        [
+            (60, 0.0, 0.4),
+            (62, 0.5, 0.9),
+            (64, 1.0, 1.4),
+            (65, 1.5, 1.9),
+        ],
+        title="Requantize",
+    )
+    first = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120, "meter_numerator": 3, "meter_denominator": 4},
+    )
+    second = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={
+            "tempo_bpm": 90,
+            "meter_numerator": 3,
+            "meter_denominator": 4,
+            "measure_origin_seconds": 0.5,
+        },
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["reused"] is False
+    assert second.json()["project"]["selected_tempo_bpm"] == 90
+    assert second.json()["project"]["tempo_source"] == "override"
+    assert second.json()["project"]["measure_origin_source"] == "override"
+    assert second.json()["project"]["quantization_revision"] == 2
+    assert second.json()["preview_notes"][0]["measure_number"] == 0
+
+    with client.app.state.session_factory() as session:
+        stored_notes = tuple(
+            session.scalars(
+                select(NoteEvent)
+                .where(NoteEvent.project_id == project["id"])
+                .order_by(NoteEvent.id)
+            )
+        )
+        assert [note.raw_start_seconds for note in stored_notes] == [0.0, 0.5, 1.0, 1.5]
+        assert (
+            session.scalar(
+                select(func.count(ProcessingRun.id)).where(ProcessingRun.stage == "quantization")
+            )
+            == 2
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"meter_numerator": 3},
+        {"meter_denominator": 4},
+        {"meter_numerator": 6, "meter_denominator": 8},
+    ],
+)
+def test_quantize_rejects_invalid_meter_payloads(
+    client: TestClient,
+    payload: dict[str, int],
+) -> None:
+    project = create_note_project(client, [(60, 0.0, 0.4)])
+
+    response = client.post(f"/api/projects/{project['id']}/quantize", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"

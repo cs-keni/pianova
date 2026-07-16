@@ -1,6 +1,6 @@
 # Data Model Reference
 
-Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance. SQLAlchemy persistence models are separate from Pydantic API schemas.
+Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state. SQLAlchemy persistence models are separate from Pydantic API schemas.
 
 ## Project
 
@@ -15,6 +15,15 @@ Alembic revision `20260714_0001` creates the initial tables; revision `20260714_
 | `duration_seconds` | float, nullable | FFprobe container/stream duration |
 | `container_format` | string(200), nullable | FFprobe format name |
 | `source_bit_rate` | integer, nullable | FFprobe aggregate bit rate |
+| `estimated_tempo_bpm` | float, nullable | Accepted automatic estimate; nullable for override-only results |
+| `selected_tempo_bpm` | float, nullable | Effective positive quarter-note BPM |
+| `tempo_source` | enum, nullable | `estimated` or `override` |
+| `measure_origin_seconds` | float, nullable | Timestamp treated as measure 1 beat 1 |
+| `measure_origin_source` | enum, nullable | `default` or `override` |
+| `meter_numerator`, `meter_denominator` | integers, nullable | Complete supported pair: `2/4`, `3/4`, or `4/4` |
+| `meter_source` | enum, nullable | `default` or `override` |
+| `current_quantization_run_id` | integer, nullable | ProcessingRun that owns current symbolic state |
+| `quantization_revision` | integer | Non-negative optimistic-concurrency counter |
 | `created_at`, `updated_at` | timestamps | UTC lifecycle timestamps |
 
 ## Artifact
@@ -36,6 +45,7 @@ Note events preserve performed timing separately from later notation:
 - `confidence`: nullable model confidence from zero to one.
 - `pitch_bends_json`: nullable raw Basic Pitch bend evidence.
 - `symbolic_start_beats`, `symbolic_duration_beats`: nullable quantized notation timing.
+- `chord_group`: nullable positive chronological group number.
 - `hand`: left, right, or unknown.
 - `source`: audio, video, audio-and-video, or manual.
 
@@ -43,20 +53,25 @@ This split lets Pianova simplify rubato into readable rhythm without destroying 
 
 ## ProcessingRun
 
-Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation and transcription create running and terminal audit rows.
+Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, and quantization create running and terminal audit rows.
 
 Transcription runs additionally retain `model_name`, `model_version`, `model_runtime`, and `configuration_json`. This records the Basic Pitch/TensorFlow dependency versions and thresholds used to produce the raw evidence.
+
+Quantization keeps the ML columns empty and stores processor identity, raw-note fingerprint,
+effective settings, fit diagnostics, and result metadata in `configuration_json`. The project
+current-run pointer plus revision identify which successful run owns the persisted symbolic fields.
 
 ## API schemas
 
 - `ProjectCreate`: `title`, 1-120 characters; whitespace-only titles are rejected by the service.
-- `ProjectResponse`: project identity, status, source metadata, and timestamps.
+- `ProjectResponse`: project identity, source metadata, current timing metadata, revision, and timestamps.
 - `HealthResponse`: application state, dependency probes, and capability registry.
 - `DependencyResponse`: executable name, availability, resolved path, version line, and error.
 - `ConfigResponse`: upload limit, extensions, and workspace location.
 - `UploadResponse`: updated project, artifact ID, generated filename, and detected type.
 - `MediaProcessResponse`: inspected project and streams, normalized Artifact, and whether an existing result was reused.
 - `TranscriptionResponse`: note-event and raw-MIDI Artifacts, total note count, a bounded note preview, model provenance, and whether existing output was reused.
+- `QuantizationResponse`: updated project timing, bounded symbolic-note preview, typed fit diagnostics, processor provenance, and reuse state.
 
 API failures use `{ "error": { "code", "message", "details" } }`. Validation failures use the same envelope.
 

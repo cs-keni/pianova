@@ -39,6 +39,16 @@ export interface Project {
   duration_seconds: number | null;
   container_format: string | null;
   source_bit_rate: number | null;
+  estimated_tempo_bpm: number | null;
+  selected_tempo_bpm: number | null;
+  tempo_source: "estimated" | "override" | null;
+  measure_origin_seconds: number | null;
+  measure_origin_source: "default" | "override" | null;
+  meter_numerator: number | null;
+  meter_denominator: number | null;
+  meter_source: "default" | "override" | null;
+  current_quantization_run_id: number | null;
+  quantization_revision: number;
   media_streams: MediaStream[];
   created_at: string;
   updated_at: string;
@@ -116,6 +126,58 @@ export interface TranscriptionResponse {
   reused: boolean;
 }
 
+export interface QuantizationRequest {
+  tempo_bpm?: number;
+  meter_numerator?: 2 | 3 | 4;
+  meter_denominator?: 4;
+  measure_origin_seconds?: number;
+}
+
+export interface TempoEstimateDiagnostics {
+  candidate_bpm: number | null;
+  residual: number | null;
+  inlier_coverage: number | null;
+  winning_score: number | null;
+  runner_up_score: number | null;
+  score_margin: number | null;
+  chord_group_count: number;
+  onset_span_seconds: number;
+  octave_ambiguous: boolean;
+}
+
+export interface QuantizedNote {
+  id: number;
+  pitch: number;
+  velocity: number;
+  raw_start_seconds: number;
+  raw_end_seconds: number;
+  symbolic_start_beats: number;
+  symbolic_duration_beats: number;
+  chord_group: number;
+  measure_number: number;
+  beat_in_measure: number;
+  confidence: number | null;
+  source: "audio" | "video" | "audio_and_video" | "manual";
+}
+
+export interface QuantizationProvenance {
+  run_id: number;
+  processor_name: string;
+  processor_version: string;
+  runtime: string;
+  input_fingerprint: string;
+  configuration: Record<string, unknown>;
+}
+
+export interface QuantizationResponse {
+  project: Project;
+  note_count: number;
+  preview_notes: QuantizedNote[];
+  diagnostics: TempoEstimateDiagnostics;
+  provenance: QuantizationProvenance;
+  reused: boolean;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -182,5 +244,11 @@ export const api = {
   transcribe: (projectId: string) =>
     request<TranscriptionResponse>(`/api/projects/${projectId}/transcribe`, {
       method: "POST",
+    }),
+  quantize: (projectId: string, payload: QuantizationRequest) =>
+    request<QuantizationResponse>(`/api/projects/${projectId}/quantize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     }),
 };

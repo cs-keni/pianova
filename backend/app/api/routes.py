@@ -19,12 +19,18 @@ from app.schemas import (
     NoteEventResponse,
     ProjectCreate,
     ProjectResponse,
+    QuantizationProvenanceResponse,
+    QuantizationRequest,
+    QuantizationResponse,
+    QuantizedNoteResponse,
+    TempoEstimateDiagnosticsResponse,
     TranscriptionProvenanceResponse,
     TranscriptionResponse,
     UploadResponse,
 )
 from app.services.media import MediaService
 from app.services.projects import ProjectService
+from app.services.quantization import QuantizationService
 from app.services.storage import SUPPORTED_EXTENSIONS, UploadService
 from app.services.transcription import PREVIEW_NOTE_LIMIT, TranscriptionService
 
@@ -192,6 +198,64 @@ def transcribe_project(
             model_version=run.model_version,
             model_runtime=run.model_runtime,
             configuration=configuration,
+        ),
+        reused=result.reused,
+    )
+
+
+@router.post("/projects/{project_id}/quantize", response_model=QuantizationResponse)
+def quantize_project(
+    project_id: str,
+    payload: QuantizationRequest,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> QuantizationResponse:
+    project = session.get(Project, project_id)
+    if project is None:
+        raise PianovaError("project_not_found", "The requested project does not exist.", 404)
+    result = QuantizationService(session, settings).quantize(project, payload)
+    provenance = result.provenance
+    preview_notes = []
+    for note in result.notes[: settings.quantization_preview_note_limit]:
+        position = result.positions[note.id]
+        preview_notes.append(
+            QuantizedNoteResponse(
+                id=note.id,
+                pitch=note.pitch,
+                velocity=note.velocity,
+                raw_start_seconds=note.raw_start_seconds,
+                raw_end_seconds=note.raw_end_seconds,
+                symbolic_start_beats=float(position.symbolic_start_beats),
+                symbolic_duration_beats=float(position.symbolic_duration_beats),
+                chord_group=position.chord_group,
+                measure_number=position.measure_number,
+                beat_in_measure=float(position.beat_in_measure),
+                confidence=note.confidence,
+                source=note.source,
+            )
+        )
+    return QuantizationResponse(
+        project=ProjectResponse.model_validate(project),
+        note_count=len(result.notes),
+        preview_notes=preview_notes,
+        diagnostics=TempoEstimateDiagnosticsResponse(
+            candidate_bpm=result.diagnostics.candidate_bpm,
+            residual=result.diagnostics.residual,
+            inlier_coverage=result.diagnostics.inlier_coverage,
+            winning_score=result.diagnostics.winning_score,
+            runner_up_score=result.diagnostics.runner_up_score,
+            score_margin=result.diagnostics.score_margin,
+            chord_group_count=result.diagnostics.chord_group_count,
+            onset_span_seconds=result.diagnostics.onset_span_seconds,
+            octave_ambiguous=result.diagnostics.octave_ambiguous,
+        ),
+        provenance=QuantizationProvenanceResponse(
+            run_id=result.run.id,
+            processor_name=str(provenance["processor_name"]),
+            processor_version=str(provenance["processor_version"]),
+            runtime=str(provenance["runtime"]),
+            input_fingerprint=str(provenance["input_fingerprint"]),
+            configuration=provenance,
         ),
         reused=result.reused,
     )

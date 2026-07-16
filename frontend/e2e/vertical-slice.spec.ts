@@ -5,9 +5,14 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-function tinyWav(): Buffer {
+function quantizableWav(): Buffer {
   const sampleRate = 22050;
-  const sampleCount = sampleRate;
+  // Two attacks are offset by one analysis frame so Basic Pitch emits stable
+  // 43-frame spacing across the real worker boundary.
+  const noteStarts = [0.25, 0.75, 1.25, 1.74, 2.26];
+  const frequencies = [261.63, 293.66, 329.63, 349.23, 392.0];
+  const noteDuration = 0.34;
+  const sampleCount = Math.ceil(sampleRate * 2.75);
   const dataSize = sampleCount * 2;
   const buffer = Buffer.alloc(44 + dataSize);
   buffer.write("RIFF", 0);
@@ -24,7 +29,18 @@ function tinyWav(): Buffer {
   buffer.write("data", 36);
   buffer.writeUInt32LE(dataSize, 40);
   for (let index = 0; index < sampleCount; index += 1) {
-    const sample = Math.round(Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 10000);
+    const time = index / sampleRate;
+    let value = 0;
+    for (let noteIndex = 0; noteIndex < noteStarts.length; noteIndex += 1) {
+      const noteTime = time - noteStarts[noteIndex];
+      if (noteTime < 0 || noteTime >= noteDuration) continue;
+      const attack = Math.min(1, noteTime / 0.015);
+      const release = Math.min(1, (noteDuration - noteTime) / 0.04);
+      const envelope = Math.min(attack, release);
+      value +=
+        Math.sin(2 * Math.PI * frequencies[noteIndex] * noteTime) * envelope * 0.65;
+    }
+    const sample = Math.round(Math.max(-1, Math.min(1, value)) * 16000);
     buffer.writeInt16LE(sample, 44 + index * 2);
   }
   return buffer;
@@ -68,7 +84,8 @@ function tinyMp4(): Buffer {
   }
 }
 
-test("creates a project, prepares audio, and runs raw transcription", async ({ page }) => {
+test("creates a project, transcribes audio, and quantizes a 120 BPM phrase", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto("/");
   await expect(page.getByText("API connected")).toBeVisible();
   await expect(page.getByText("Piano transcription", { exact: true })).toBeVisible();
@@ -82,7 +99,7 @@ test("creates a project, prepares audio, and runs raw transcription", async ({ p
   await page.getByLabel("Piano audio or video").setInputFiles({
     name: "performance.wav",
     mimeType: "audio/wav",
-    buffer: tinyWav(),
+    buffer: quantizableWav(),
   });
   await page.getByRole("button", { name: "Upload source file" }).click();
 
@@ -96,6 +113,17 @@ test("creates a project, prepares audio, and runs raw transcription", async ({ p
   await expect(
     page.getByText("Raw MIDI and note-event JSON are saved. Quantization has not started."),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Estimate tempo and quantize" }).click();
+  await expect(page.getByText("Readable timing ready", { exact: true }).last()).toBeVisible({
+    timeout: 60_000,
+  });
+  const timingSummary = await page
+    .getByText(/BPM · 4\/4 · estimated tempo/)
+    .textContent();
+  const bpm = Number.parseFloat(timingSummary ?? "");
+  expect(bpm).toBeGreaterThanOrEqual(119.5);
+  expect(bpm).toBeLessThanOrEqual(120.5);
+  await expect(page.getByText("Symbolic timing preview")).toBeVisible();
 });
 
 test("rejects a file whose contents do not match its audio extension", async ({ page }) => {

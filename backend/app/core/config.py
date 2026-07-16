@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -38,6 +38,22 @@ class Settings(BaseSettings):
     transcription_minimum_note_length_ms: float = Field(default=127.7, gt=0, le=10000)
     transcription_minimum_frequency_hz: float = Field(default=27.5, gt=0)
     transcription_maximum_frequency_hz: float = Field(default=4186.01, gt=0)
+    quantization_minimum_bpm: float = Field(default=40.0, gt=0, le=400)
+    quantization_maximum_bpm: float = Field(default=200.0, gt=0, le=400)
+    quantization_chord_tolerance_ms: float = Field(default=60.0, ge=0, le=500)
+    quantization_minimum_grid_beats: float = Field(default=0.25, gt=0, le=1)
+    quantization_minimum_tempo_groups: int = Field(default=4, ge=3, le=32)
+    quantization_minimum_tempo_span_seconds: float = Field(default=1.0, gt=0, le=60)
+    quantization_maximum_residual: float = Field(default=0.22, ge=0, le=0.5)
+    quantization_minimum_inlier_coverage: float = Field(default=0.75, ge=0, le=1)
+    quantization_inlier_residual: float = Field(default=0.35, ge=0, le=0.5)
+    quantization_distinct_tempo_ratio: float = Field(default=0.02, ge=0, le=0.25)
+    quantization_ambiguity_margin: float = Field(default=0.03, ge=0, le=1)
+    quantization_octave_ambiguity_margin: float = Field(default=0.04, ge=0, le=1)
+    quantization_rest_tolerance_beats: float = Field(default=0.12, ge=0, le=1)
+    quantization_same_pitch_repair_tolerance_beats: float = Field(default=0.5, ge=0, le=4)
+    quantization_preview_note_limit: int = Field(default=50, ge=1, le=500)
+    quantization_algorithm_version: str = "1.0.0"
 
     @field_validator("workspace_dir", mode="before")
     @classmethod
@@ -52,6 +68,14 @@ class Settings(BaseSettings):
             return None
         path = Path(str(value))
         return path if path.is_absolute() else REPOSITORY_ROOT / path
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> "Settings":
+        if self.transcription_maximum_frequency_hz <= self.transcription_minimum_frequency_hz:
+            raise ValueError("transcription_maximum_frequency_hz must exceed the minimum frequency")
+        if self.quantization_maximum_bpm <= self.quantization_minimum_bpm:
+            raise ValueError("quantization_maximum_bpm must exceed quantization_minimum_bpm")
+        return self
 
     @property
     def resolved_database_url(self) -> str:

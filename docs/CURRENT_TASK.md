@@ -2,23 +2,23 @@
 
 ## Active milestone
 
-The Basic Pitch raw-transcription and raw-MIDI milestone is implemented.
+Hands, staves, voices, and pitch spelling are the next milestone. Tempo estimation and readable quantization are complete; see [the reviewed execution plan](TEMPO_QUANTIZATION_PLAN.md).
 
 ## Status
 
-Pianova can now create a project, securely store a supported source, inspect and normalize it, and explicitly run Basic Pitch in an isolated Python environment. The backend persists raw performed note timing, confidence and pitch-bend evidence, model/configuration provenance, versioned note-event JSON, and raw MIDI. The Next.js interface shows a bounded note preview while truthfully leaving quantization and score reconstruction unstarted.
+The product now reaches a persisted readable-timing boundary: raw Basic Pitch evidence remains unchanged while project-level BPM, simple meter, measure origin, chord groups, and symbolic note timing are stored with diagnostics and provenance. The next stage may consume symbolic timing but must not collapse hand, staff, voice, or spelling uncertainty into hidden guesses.
 
 ## Verified behavior
 
 - Native Windows Python 3.11.9, FFprobe 8.0, and FFmpeg 8.0 are available in the runtime used by FastAPI.
 - The isolated worker resolves Basic Pitch 0.4.0, TensorFlow 2.15.0, NumPy 1.26.4, librosa 0.11.0, pretty-midi 0.2.11, and SciPy 1.17.1.
 - Ruff and strict mypy pass across the backend.
-- 43 pytest tests pass using temporary Alembic-migrated SQLite databases.
-- `alembic check` reports no schema drift after revision `20260716_0004`.
+- 62 pytest tests pass using temporary Alembic-migrated SQLite databases.
+- `alembic check` reports no schema drift after revision `20260716_0005`.
 - ESLint and TypeScript pass.
 - Five Vitest component tests pass.
 - The optimized Next.js production build passes.
-- Three Playwright tests pass against live FastAPI and Next.js servers. The primary audio flow performs real FFprobe, FFmpeg, and Basic Pitch/TensorFlow work; the video flow verifies media preparation; the rejection flow blocks mismatched contents.
+- Three Playwright tests pass against live FastAPI and Next.js servers. The primary audio flow performs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM estimation, and quantization; the video flow verifies media preparation; the rejection flow blocks mismatched contents.
 
 ## Approved decisions preserved
 
@@ -33,19 +33,24 @@ Pianova can now create a project, securely store a supported source, inspect and
 - The worker returns versioned JSON plus MIDI, and the API validates provenance before persistence.
 - Transcription requires normalized input, rejects duration below 0.05 seconds, has a bounded timeout, cleans all partial output on failure, and remains retryable.
 - Successful repeat requests reuse both raw transcription artifacts.
+- Tempo estimation groups nearby onsets, generates bounded candidates, and rejects sparse, weak, close-runner, or half/double-tempo evidence with an explicit BPM recovery path.
+- Quantization supports one global quarter-note BPM, `2/4`, `3/4`, or `4/4`, explicit measure origin, exact internal fractions, and a straight sixteenth-note minimum grid.
+- Raw seconds remain unchanged; symbolic fields, chord groups, project timing, current-run ownership, revision, diagnostics, and processor identity are persisted together.
+- Matching raw fingerprint/settings/version reuse the current result; changed settings recompute only symbolic state.
+- Optimistic concurrency and transactional rollback preserve the previous complete symbolic result.
 
-## Next milestone
+## Current implementation target
 
-Implement tempo estimation and readable quantization:
+Design and implement the first hand/staff/voice/spelling boundary:
 
-1. Define typed tempo, beat-grid, meter, and quantized-note contracts without altering raw transcription evidence.
-2. Establish deterministic synthetic fixtures and measurable rhythm/readability expectations.
-3. Prefer simple readable durations, chord grouping, and limited rests/ties over preserving every expressive deviation.
-4. Persist symbolic onset/duration separately from raw timing and retain algorithm/configuration provenance.
-5. Add ambiguity, invalid-grid, cleanup, retry, and regression coverage before exposing the stage in the UI.
+1. Preserve quantized note timing and surface uncertainty rather than forcing hidden assignments.
+2. Define typed, independently testable heuristics for hand, staff, voice, and enharmonic spelling.
+3. Establish deterministic fixtures for crossings, overlapping voices, chords, repeated notes, and ambiguous middle-register material.
+4. Keep MusicXML serialization and rendering downstream of an explicit cleaned-score contract.
+5. Add correction-friendly provenance and confidence before presenting assignments as complete.
 
-Do not begin hand assignment, MusicXML, or score rendering until the quantization boundary is measured and verified.
+Do not begin MusicXML or rendering until this interpretation boundary is reviewed and verified.
 
 ## Active blockers
 
-None for the completed transcription milestone. The next milestone needs an approved quantization approach and evaluation fixtures before implementation.
+None. Engineering review resolved the architecture and full test matrix.
