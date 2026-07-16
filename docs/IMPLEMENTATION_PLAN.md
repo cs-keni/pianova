@@ -1,6 +1,6 @@
 # Pianova Initial Scaffold Implementation Plan
 
-Status: initial scaffold complete and verified as of 2026-07-14. The follow-on FFprobe inspection and FFmpeg normalized-WAV milestone was completed on 2026-07-16; see `docs/CURRENT_TASK.md` for the active boundary.
+Status: initial scaffold complete and verified as of 2026-07-14. The follow-on FFprobe/FFmpeg media milestone and isolated Basic Pitch raw-transcription milestone were completed on 2026-07-16; see `docs/CURRENT_TASK.md` for the active boundary.
 
 ## Implementation progress
 
@@ -33,7 +33,7 @@ Active blockers and recovery commands are maintained in `docs/CURRENT_TASK.md`; 
 
 ## Goal
 
-Deliver every item in the `first.md` "First task" as a stable local scaffold. This milestone proves that the frontend, API, SQLite database, and project-scoped file storage work together. It does not claim transcription, media inspection, audio normalization, MIDI, MusicXML, or score rendering are implemented.
+Deliver every item in the `first.md` "First task" as a stable local scaffold. This historical milestone proved that the frontend, API, SQLite database, and project-scoped file storage work together. Follow-on milestones have since implemented media inspection, audio normalization, raw transcription, and raw MIDI; MusicXML and score rendering remain unimplemented.
 
 ## Environment and compatibility baseline
 
@@ -41,9 +41,9 @@ Deliver every item in the `first.md` "First task" as a stable local scaffold. Th
 - Node.js: 20 LTS. The installed Node.js 20.19.5 satisfies the current Next.js minimum of 20.9.
 - FFmpeg and FFprobe: native Windows version 8.0 is verified for media inspection and normalization. WSL also has version 6.1.1.
 - MuseScore: not detected. MusicXML must remain downloadable when implemented; PDF rendering will be an optional capability.
-- Basic Pitch: optional backend dependency group. Do not load or install the ML stack for ordinary scaffold development.
+- Basic Pitch: implemented in an isolated optional Python 3.11 worker environment. The ordinary API environment does not import the ML stack.
 
-The backend will keep a `PianoTranscriber`-style boundary when transcription begins. A separate Python process is deferred unless real dependency conflicts justify it.
+The backend now keeps its transcription boundary at a separate Python process because the verified TensorFlow stack has materially different pinned dependencies from the ordinary API environment.
 
 ## Approved architecture
 
@@ -189,13 +189,13 @@ pianova/
 - `AGENTS.md` defines delivery and shared-context rules. The implementation follows those rules.
 - Git is initialized on `main` and tracks `origin/main`.
 - Windows Python 3.11 and native Windows Node/npm are the verified runtime for this `/mnt/c` checkout. Native Windows FFmpeg/FFprobe 8.0 now process media; WSL also has FFmpeg/FFprobe 6.1.1. MuseScore is not currently detected.
-- The scaffold, migrated backend, connected frontend, secure-upload flow, tests, and documentation described by this plan are implemented. Media inspection/normalization was delivered as the next vertical slice.
+- The scaffold, migrated backend, connected frontend, secure-upload flow, tests, and documentation described by this plan are implemented. Media inspection/normalization and isolated Basic Pitch raw transcription were delivered as the next vertical slices.
 
 ## NOT in scope
 
 - FFprobe media inspection and FFmpeg normalization were outside this original scaffold plan and are now implemented in the follow-on milestone.
-- Basic Pitch installation and real transcription: deferred until the upload/media foundation is verified under Python 3.11.
-- MIDI, MusicXML, MuseScore rendering, note editing, and piano-roll UI: later ordered milestones.
+- Basic Pitch installation, real raw transcription, and raw MIDI were outside this original scaffold plan and are now implemented in a follow-on milestone.
+- Clean MIDI, MusicXML, MuseScore rendering, note editing, and piano-roll UI: later ordered milestones.
 - Project listing, editing, deletion, and reprocessing beyond what the initial page needs: later project-management work.
 - Background workers or queues: synchronous request handling is sufficient for this scaffold; long processing will get a simple local worker only when needed.
 - Synthesia computer vision and audio-video fusion: deferred until the audio pipeline is stable.

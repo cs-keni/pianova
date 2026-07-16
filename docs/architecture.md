@@ -9,7 +9,7 @@ Next.js browser UI
   | typed JSON and multipart HTTP
   v
 FastAPI routes
-  |-- services: project lifecycle, safe storage, media inspection, normalization
+  |-- services: project lifecycle, storage, media preparation, transcription orchestration
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
   v
@@ -55,6 +55,24 @@ source Artifact
 
 Completed normalized artifacts are idempotent: repeated requests return the existing file. Failed attempts do not create an Artifact and may be retried.
 
+Transcription runs across a process boundary:
+
+```text
+FastAPI lightweight environment
+  -> validate normalized Artifact and source duration
+  -> create running ProcessingRun
+  -> launch .venv-transcription Python with safe argument list
+  -> Basic Pitch 0.4.0 / TensorFlow 2.15 inference
+  -> validate versioned note-event JSON
+  -> atomically finalize note-event JSON and raw MIDI
+  -> commit NoteEvent rows, Artifacts, and model/config provenance
+```
+
+The worker is separately probed at startup and remains optional. A missing worker makes only
+transcription unavailable; project creation, uploads, and media preparation continue working.
+Successful repeat calls reuse both raw artifacts. Failed calls remove all partial/final output and
+remain retryable.
+
 ## External executables
 
 FFmpeg, FFprobe, and MuseScore are configured by optional explicit paths or normal executable discovery. Startup probes use argument lists and bounded timeouts; the cached paths feed the capability registry and media service. Media subprocesses use separate configurable inspection and normalization timeouts.
@@ -71,7 +89,11 @@ This contract prevents the interface from confusing a detected executable with a
 
 ## Transcription boundary
 
-Basic Pitch is an optional dependency group, not part of ordinary API development. When transcription begins, a `PianoTranscriber`-style interface will convert normalized WAV input into typed note events. A separate process is deferred until dependency conflicts or resource isolation make it necessary.
+`TranscriptionService` is the application-facing boundary. It does not import Basic Pitch,
+TensorFlow, NumPy, librosa, or pretty_midi. `app.transcription.worker` owns those imports inside
+`.venv-transcription`, converts Basic Pitch tuples into a versioned typed contract, and writes MIDI.
+This isolates TensorFlow's large pinned dependency set and prevents model imports from affecting
+ordinary API tests and startup when the optional environment is absent.
 
 ## Trade-offs
 
@@ -80,5 +102,6 @@ Basic Pitch is an optional dependency group, not part of ordinary API developmen
 - Signature validation is fast and safe for upload acceptance; FFprobe separately proves decodability and extracts typed metadata.
 - Cached dependency states avoid repeated subprocess cost, but executable changes require an application restart.
 - Synchronous normalization is simple and visible but holds one API request open; a local worker remains deferred until real file durations justify it.
+- A fresh transcription process isolates failures but reloads TensorFlow for each project. A persistent local worker is deferred until measured throughput justifies its lifecycle complexity.
 
 Related: [pipeline](pipeline.md), [data model](data-model.md), and [roadmap](roadmap.md).

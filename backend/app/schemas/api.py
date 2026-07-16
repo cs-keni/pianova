@@ -3,7 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.capabilities import Capability
-from app.models.entities import ArtifactKind, MediaStreamType, ProjectStatus
+from app.models.entities import ArtifactKind, DetectionSource, MediaStreamType, ProjectStatus
 
 
 class DependencyResponse(BaseModel):
@@ -86,4 +86,33 @@ class ArtifactResponse(BaseModel):
 class MediaProcessResponse(BaseModel):
     project: ProjectResponse
     normalized_artifact: ArtifactResponse
+    reused: bool
+
+
+class NoteEventResponse(BaseModel):
+    id: int
+    pitch: int
+    velocity: int
+    raw_start_seconds: float
+    raw_end_seconds: float
+    confidence: float | None
+    pitch_bends: list[int] | None
+    source: DetectionSource
+
+
+class TranscriptionProvenanceResponse(BaseModel):
+    run_id: int
+    model_name: str
+    model_version: str
+    model_runtime: str
+    configuration: dict[str, object]
+
+
+class TranscriptionResponse(BaseModel):
+    project: ProjectResponse
+    note_events_artifact: ArtifactResponse
+    raw_midi_artifact: ArtifactResponse
+    note_count: int
+    preview_notes: list[NoteEventResponse]
+    provenance: TranscriptionProvenanceResponse
     reused: bool

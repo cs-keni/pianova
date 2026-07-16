@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -55,4 +56,63 @@ def probe_dependencies(settings: Settings) -> dict[str, DependencyStatus]:
         "ffmpeg": _probe("ffmpeg", settings.ffmpeg_path, timeout),
         "ffprobe": _probe("ffprobe", settings.ffprobe_path, timeout),
         "musescore": _probe("musescore", musescore_path, timeout),
+        "basic_pitch": _probe_transcription(settings),
     }
+
+
+def _probe_transcription(settings: Settings) -> DependencyStatus:
+    executable = settings.resolved_transcription_python_path
+    if not executable.is_file():
+        return DependencyStatus(
+            name="basic_pitch",
+            available=False,
+            path=str(executable),
+            version=None,
+            error="transcription environment not found",
+        )
+    try:
+        result = subprocess.run(
+            [str(executable), "-m", "app.transcription.worker", "--probe"],
+            capture_output=True,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=settings.transcription_probe_timeout_seconds,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return DependencyStatus(
+            name="basic_pitch",
+            available=False,
+            path=str(executable),
+            version=None,
+            error=type(error).__name__,
+        )
+    if result.returncode != 0:
+        return DependencyStatus(
+            name="basic_pitch",
+            available=False,
+            path=str(executable),
+            version=None,
+            error=f"exit code {result.returncode}",
+        )
+    try:
+        payload = json.loads(result.stdout)
+        version = (
+            f"Basic Pitch {payload['model_version']} / "
+            f"{payload['runtime']} {payload['runtime_version']}"
+        )
+    except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return DependencyStatus(
+            name="basic_pitch",
+            available=False,
+            path=str(executable),
+            version=None,
+            error="invalid probe output",
+        )
+    return DependencyStatus(
+        name="basic_pitch",
+        available=True,
+        path=str(executable),
+        version=version,
+    )

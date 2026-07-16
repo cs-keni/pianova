@@ -1,6 +1,6 @@
 # Processing Pipeline
 
-The current product implements project creation and secure source ingestion. Every later stage remains a separate typed boundary and must fail explicitly until implemented.
+The current product implements secure ingestion, typed media preparation, and raw Basic Pitch transcription. Every later symbolic stage remains a separate typed boundary and must fail explicitly until implemented.
 
 | Stage | Input | Output/artifact | Main failure modes | Status |
 |---|---|---|---|---|
@@ -9,8 +9,8 @@ The current product implements project creation and secure source ingestion. Eve
 | Upload finalization | Valid temporary file | `source-<UUID>.<ext>` and source Artifact row | Atomic rename or metadata commit failure | Implemented |
 | Media inspection | Source artifact | Duration, container, bit rate, typed stream rows | Missing FFprobe, undecodable input, missing audio/duration, timeout | Implemented |
 | Audio normalization | Valid inspected media | Mono 22.05 kHz PCM WAV artifact | Missing FFmpeg, codec failure, timeout, disk or commit failure | Implemented |
-| Transcription | Normalized WAV | Raw typed note events | Model load/inference failure, unsupported environment | Not implemented |
-| Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization failure | Not implemented |
+| Transcription | Normalized WAV | Raw typed note events | Missing worker, model load/inference failure, timeout, malformed output | Implemented |
+| Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
 | Symbolic cleanup | Raw timing and pitch | Tempo, beats, quantized notes, hands, voices | Ambiguous rhythm, meter, hand, or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
@@ -30,9 +30,15 @@ On success, the project becomes `uploaded`, original display metadata is recorde
 
 FFmpeg maps the first audio stream, removes video, and writes mono 22.05 kHz 16-bit PCM WAV to a hidden temporary path. The service atomically finalizes the generated filename and commits the normalized Artifact, metadata, and successful ProcessingRun together. Timeouts and failures remove partial output and leave the source retryable. Repeated successful requests reuse the existing normalized Artifact.
 
+## Implemented transcription contract
+
+`POST /api/projects/{project_id}/transcribe` is explicit and synchronous. It requires a normalized WAV and rejects sources shorter than the configured 0.05-second minimum before inference. The ordinary FastAPI environment launches an isolated `.venv-transcription` worker, which loads Basic Pitch 0.4.0 and TensorFlow 2.15 without importing the ML stack into the API process.
+
+The worker writes versioned note-event JSON and raw MIDI to temporary paths. Pianova validates the schema and Basic Pitch provenance, atomically finalizes both artifacts, persists raw `NoteEvent` rows plus model/runtime/configuration metadata, and completes the ProcessingRun in one database transaction. Timeouts, inference failures, malformed output, finalization failures, and commit failures clean up generated files and remain retryable. Repeated successful requests reuse the existing note-event JSON and raw MIDI.
+
 ## Generated artifacts
 
-All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Source and normalized-audio artifacts are currently produced.
+All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Source, normalized-audio, note-event JSON, and raw-MIDI artifacts are currently produced.
 
 ## Configuration
 
@@ -44,6 +50,13 @@ All artifact kinds are reserved in the schema: source, normalized audio, note-ev
 - `PIANOVA_MEDIA_NORMALIZATION_TIMEOUT_SECONDS`: FFmpeg processing timeout, default 300 seconds.
 - `PIANOVA_NORMALIZED_SAMPLE_RATE`: output rate, default 22050 Hz.
 - `PIANOVA_NORMALIZED_CHANNELS`: output channels, default mono.
+- `PIANOVA_TRANSCRIPTION_PYTHON_PATH`: optional isolated-worker Python override.
+- `PIANOVA_TRANSCRIPTION_PROBE_TIMEOUT_SECONDS`: worker dependency-probe timeout, default 30 seconds.
+- `PIANOVA_TRANSCRIPTION_TIMEOUT_SECONDS`: inference timeout, default 1800 seconds.
+- `PIANOVA_TRANSCRIPTION_MINIMUM_DURATION_SECONDS`: pre-inference duration floor, default 0.05 seconds.
+- `PIANOVA_TRANSCRIPTION_ONSET_THRESHOLD`, `PIANOVA_TRANSCRIPTION_FRAME_THRESHOLD`: Basic Pitch detection thresholds.
+- `PIANOVA_TRANSCRIPTION_MINIMUM_NOTE_LENGTH_MS`: minimum emitted note length, default 127.7 ms.
+- `PIANOVA_TRANSCRIPTION_MINIMUM_FREQUENCY_HZ`, `PIANOVA_TRANSCRIPTION_MAXIMUM_FREQUENCY_HZ`: piano-range frequency bounds.
 - `PIANOVA_DATABASE_URL`: SQLite or another SQLAlchemy URL.
 
 Related: [architecture](architecture.md), [data model](data-model.md), and the root [run guide](../README.md#run-pianova).

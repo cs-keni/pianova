@@ -8,6 +8,7 @@ import {
   type ConfigResponse,
   type HealthResponse,
   type Project,
+  type TranscriptionResponse,
 } from "@/lib/api";
 
 function formatBytes(bytes: number): string {
@@ -21,6 +22,11 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(wholeSeconds / 60);
   const remainder = wholeSeconds % 60;
   return minutes > 0 ? `${minutes}:${remainder.toString().padStart(2, "0")}` : `${remainder}s`;
+}
+
+function formatPitch(pitch: number): string {
+  const names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+  return `${names[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
 }
 
 function errorMessage(error: unknown): string {
@@ -38,6 +44,8 @@ export default function Home() {
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcription, setTranscription] = useState<TranscriptionResponse | null>(null);
 
   async function loadStatus() {
     try {
@@ -114,8 +122,26 @@ export default function Home() {
     }
   }
 
+  async function transcribeProject() {
+    if (!project || transcribing) return;
+    setTranscribing(true);
+    setFormError(null);
+    try {
+      const response = await api.transcribe(project.id);
+      setProject(response.project);
+      setTranscription(response);
+    } catch (error) {
+      setFormError(errorMessage(error));
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
   const mediaCapability = health?.capabilities.find(
     (capability) => capability.key === "media_normalization",
+  );
+  const transcriptionCapability = health?.capabilities.find(
+    (capability) => capability.key === "transcription",
   );
   const audioStream = project?.media_streams.find((stream) => stream.stream_type === "audio");
   const videoStream = project?.media_streams.find((stream) => stream.stream_type === "video");
@@ -165,10 +191,12 @@ export default function Home() {
           <div className={styles.sectionHeading}>
             <div>
               <p className={styles.step}>
-                Step {mediaReady ? "3" : project ? "2" : "1"} of 3
+                Step {transcription ? "4" : mediaReady ? "3" : project ? "2" : "1"} of 4
               </p>
               <h3 id="workflow-title">
-                {mediaReady
+                {transcription
+                  ? "Raw transcription ready"
+                  : mediaReady
                   ? "Media ready"
                   : project?.status === "uploaded"
                     ? "Inspect and prepare audio"
@@ -196,6 +224,59 @@ export default function Home() {
                 {creating ? "Creating…" : "Create local project"}
               </button>
             </form>
+          ) : transcription ? (
+            <div className={styles.transcriptionResult} role="status">
+              <div className={styles.success}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h4>Raw transcription complete</h4>
+                  <p>
+                    {transcription.note_count} detected{" "}
+                    {transcription.note_count === 1 ? "note" : "notes"} ·{" "}
+                    {transcription.provenance.model_name}{" "}
+                    {transcription.provenance.model_version}
+                  </p>
+                  <p>Raw MIDI and note-event JSON are saved. Quantization has not started.</p>
+                </div>
+              </div>
+              {transcription.preview_notes.length > 0 ? (
+                <div className={styles.notePreview}>
+                  <h4>Detected note preview</h4>
+                  <div className={styles.noteTableWrap}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Pitch</th>
+                          <th>Onset</th>
+                          <th>Duration</th>
+                          <th>Confidence</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transcription.preview_notes.map((note) => (
+                          <tr key={note.id}>
+                            <td>
+                              {formatPitch(note.pitch)} <small>MIDI {note.pitch}</small>
+                            </td>
+                            <td>{note.raw_start_seconds.toFixed(2)}s</td>
+                            <td>
+                              {(note.raw_end_seconds - note.raw_start_seconds).toFixed(2)}s
+                            </td>
+                            <td>
+                              {note.confidence == null
+                                ? "—"
+                                : `${Math.round(note.confidence * 100)}%`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <p className={styles.emptyNotes}>No notes were detected in this source.</p>
+              )}
+            </div>
           ) : mediaReady ? (
             <div className={styles.mediaResult} role="status">
               <div className={styles.success}>
@@ -238,6 +319,19 @@ export default function Home() {
                   </dd>
                 </div>
               </dl>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={transcribing || transcriptionCapability?.state !== "available"}
+                onClick={transcribeProject}
+              >
+                {transcribing ? "Transcribing piano…" : "Transcribe piano"}
+              </button>
+              {transcriptionCapability?.state === "unavailable" && (
+                <p className={styles.formError}>
+                  Install the isolated Basic Pitch environment for transcription.
+                </p>
+              )}
             </div>
           ) : project.status === "uploaded" ? (
             <div className={styles.processStep}>

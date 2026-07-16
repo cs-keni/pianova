@@ -87,6 +87,35 @@ export interface MediaProcessResponse {
   reused: boolean;
 }
 
+export interface NoteEvent {
+  id: number;
+  pitch: number;
+  velocity: number;
+  raw_start_seconds: number;
+  raw_end_seconds: number;
+  confidence: number | null;
+  pitch_bends: number[] | null;
+  source: "audio" | "video" | "audio_and_video" | "manual";
+}
+
+export interface TranscriptionProvenance {
+  run_id: number;
+  model_name: string;
+  model_version: string;
+  model_runtime: string;
+  configuration: Record<string, unknown>;
+}
+
+export interface TranscriptionResponse {
+  project: Project;
+  note_events_artifact: Artifact;
+  raw_midi_artifact: Artifact;
+  note_count: number;
+  preview_notes: NoteEvent[];
+  provenance: TranscriptionProvenance;
+  reused: boolean;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -148,6 +177,10 @@ export const api = {
   },
   processMedia: (projectId: string) =>
     request<MediaProcessResponse>(`/api/projects/${projectId}/process-media`, {
+      method: "POST",
+    }),
+  transcribe: (projectId: string) =>
+    request<TranscriptionResponse>(`/api/projects/${projectId}/transcribe`, {
       method: "POST",
     }),
 };

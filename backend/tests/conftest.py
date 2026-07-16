@@ -33,6 +33,12 @@ def client(
         "ffmpeg": DependencyStatus("ffmpeg", True, "ffmpeg", "ffmpeg test"),
         "ffprobe": DependencyStatus("ffprobe", True, "ffprobe", "ffprobe test"),
         "musescore": DependencyStatus("musescore", False, None, None, "not found"),
+        "basic_pitch": DependencyStatus(
+            "basic_pitch",
+            True,
+            "python",
+            "Basic Pitch 0.4.0 / TensorFlow 2.15.0",
+        ),
     }
     app = create_app(settings=settings, dependencies=dependencies)
     with TestClient(app) as test_client:

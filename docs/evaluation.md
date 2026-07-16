@@ -50,11 +50,11 @@ Infrastructure tests use generated fixtures. Model benchmarks and musical-qualit
 
 ## Current baseline
 
-No transcription baseline exists because the model pipeline is not implemented. The current vertical-slice baseline is operational: 32 backend tests, five frontend component tests, a production build, and three live Playwright flows. Native Windows FFprobe/FFmpeg inspect and normalize generated WAV and MP4 fixtures; the rejection flow blocks mismatched contents.
+No musical-accuracy baseline exists yet because the repository has no license-reviewed reference corpus. The current vertical-slice baseline is operational: 43 backend tests, five frontend component tests, a production build, and three live Playwright flows. Native Windows FFprobe/FFmpeg inspect and normalize generated WAV and MP4 fixtures; the primary audio flow also runs real Basic Pitch 0.4.0/TensorFlow 2.15 inference and verifies raw note-event JSON plus MIDI. The rejection flow blocks mismatched contents.
 
 ## Known limitations
 
-- Synthetic upload fixtures test storage correctness, not musical accuracy.
+- The generated transcription fixture proves orchestration and artifact correctness, not musical accuracy.
 - Public piano datasets may not represent phone recordings, room acoustics, rubato, or modern Synthesia videos.
 - A single tolerance can hide musically different errors; publish thresholds with every score.
 - Readability requires human judgment alongside automated metrics.

@@ -5,8 +5,11 @@ from app.schemas.api import (
     HealthResponse,
     MediaProcessResponse,
     MediaStreamResponse,
+    NoteEventResponse,
     ProjectCreate,
     ProjectResponse,
+    TranscriptionProvenanceResponse,
+    TranscriptionResponse,
     UploadResponse,
 )
 
@@ -17,7 +20,10 @@ __all__ = [
     "HealthResponse",
     "MediaProcessResponse",
     "MediaStreamResponse",
+    "NoteEventResponse",
     "ProjectCreate",
     "ProjectResponse",
+    "TranscriptionProvenanceResponse",
+    "TranscriptionResponse",
     "UploadResponse",
 ]

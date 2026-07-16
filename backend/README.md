@@ -1,6 +1,8 @@
 # Pianova backend
 
-The FastAPI backend owns configuration, SQLite persistence, project-scoped storage, dependency/capability reporting, FFprobe inspection, FFmpeg normalization, and future processing stages. Use Python 3.11; the Basic Pitch transcription extra remains separate from ordinary development dependencies.
+The FastAPI backend owns configuration, persistence, storage, dependency/capability reporting,
+media preparation, typed transcription orchestration, and later symbolic stages. Basic Pitch and
+TensorFlow run from a separate Python 3.11 environment so ordinary API development remains light.
 
 From `backend/` with the repository `.venv` active:
 
@@ -9,7 +11,19 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 18080
 ```
 
-The implemented API surface is `GET /api/health`, `GET /api/config`, `GET /api/dependencies`, `POST /api/projects`, `POST /api/projects/{project_id}/upload`, and `POST /api/projects/{project_id}/process-media`. Interactive OpenAPI documentation is available at `http://127.0.0.1:18080/docs`.
+The implemented API surface is `GET /api/health`, `GET /api/config`,
+`GET /api/dependencies`, `POST /api/projects`, `POST /api/projects/{project_id}/upload`,
+`POST /api/projects/{project_id}/process-media`, and
+`POST /api/projects/{project_id}/transcribe`. Interactive OpenAPI documentation is available at
+`http://127.0.0.1:18080/docs`.
+
+From the repository root, install and verify the isolated worker:
+
+```powershell
+py -3.11 -m venv .venv-transcription
+.\.venv-transcription\Scripts\python.exe -m pip install -e ".\backend[transcription]"
+.\.venv-transcription\Scripts\python.exe -m app.transcription.worker --probe
+```
 
 ```powershell
 ruff check .

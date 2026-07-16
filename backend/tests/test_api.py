@@ -4,6 +4,9 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
+
+from app.models.entities import Artifact, ArtifactKind, NoteEvent, ProcessingRun
 
 
 def test_health_reports_media_capability_and_unfinished_stages(client: TestClient) -> None:
@@ -16,10 +19,11 @@ def test_health_reports_media_capability_and_unfinished_stages(client: TestClien
         "ffmpeg": True,
         "ffprobe": True,
         "musescore": False,
+        "basic_pitch": True,
     }
     capabilities = {item["key"]: item["state"] for item in body["capabilities"]}
     assert capabilities["media_normalization"] == "available"
-    assert capabilities["transcription"] == "not_implemented"
+    assert capabilities["transcription"] == "available"
     assert capabilities["musicxml"] == "not_implemented"
     assert capabilities["score_rendering"] == "not_implemented"
 
@@ -36,7 +40,12 @@ def test_dependencies_are_available_as_a_standalone_contract(client: TestClient)
     response = client.get("/api/dependencies")
 
     assert response.status_code == 200
-    assert [item["name"] for item in response.json()] == ["ffmpeg", "ffprobe", "musescore"]
+    assert [item["name"] for item in response.json()] == [
+        "ffmpeg",
+        "ffprobe",
+        "musescore",
+        "basic_pitch",
+    ]
 
 
 def test_create_project_persists_and_creates_storage(client: TestClient) -> None:
@@ -240,3 +249,153 @@ def test_process_media_requires_an_uploaded_source(client: TestClient) -> None:
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "source_not_uploaded"
+
+
+def test_transcribe_persists_raw_notes_midi_and_provenance(
+    client: TestClient,
+    wav_bytes: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = client.post("/api/projects", json={"title": "Transcription"}).json()
+    client.post(
+        f"/api/projects/{project['id']}/upload",
+        files={"file": ("performance.wav", wav_bytes, "audio/wav")},
+    )
+
+    def fake_media_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        if command[0] == "ffprobe":
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                json.dumps(
+                    {
+                        "streams": [
+                            {
+                                "index": 0,
+                                "codec_type": "audio",
+                                "duration": "1.0",
+                                "sample_rate": "22050",
+                                "channels": 1,
+                            }
+                        ],
+                        "format": {"format_name": "wav", "duration": "1.0"},
+                    }
+                ),
+                "",
+            )
+        Path(command[-1]).write_bytes(b"RIFF-normalized")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("app.services.media.subprocess.run", fake_media_run)
+    processed = client.post(f"/api/projects/{project['id']}/process-media")
+    assert processed.status_code == 200
+
+    commands: list[list[str]] = []
+
+    def fake_worker_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        events_path = Path(command[command.index("--events-output") + 1])
+        midi_path = Path(command[command.index("--midi-output") + 1])
+        events_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "provenance": {
+                        "model_name": "basic_pitch",
+                        "model_version": "0.4.0",
+                        "model_runtime": "tensorflow",
+                        "runtime_version": "2.15.0",
+                        "model_serialization": "icassp_2022/nmp",
+                        "configuration": {
+                            "onset_threshold": 0.5,
+                            "frame_threshold": 0.3,
+                            "minimum_note_length_ms": 127.7,
+                            "minimum_frequency_hz": 27.5,
+                            "maximum_frequency_hz": 4186.01,
+                            "multiple_pitch_bends": False,
+                            "melodia_trick": True,
+                            "midi_tempo": 120.0,
+                            "inference_seconds": 0.25,
+                        },
+                    },
+                    "notes": [
+                        {
+                            "pitch": 60,
+                            "start_seconds": 0.1,
+                            "end_seconds": 0.5,
+                            "velocity": 96,
+                            "confidence": 0.75,
+                            "pitch_bends": [0, 1],
+                        },
+                        {
+                            "pitch": 64,
+                            "start_seconds": 0.5,
+                            "end_seconds": 0.9,
+                            "velocity": 80,
+                            "confidence": 0.63,
+                            "pitch_bends": None,
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        midi_path.write_bytes(b"MThd\x00\x00\x00\x06")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("app.services.transcription.subprocess.run", fake_worker_run)
+    first = client.post(f"/api/projects/{project['id']}/transcribe")
+    second = client.post(f"/api/projects/{project['id']}/transcribe")
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["note_count"] == 2
+    assert body["preview_notes"][0] == {
+        "id": body["preview_notes"][0]["id"],
+        "pitch": 60,
+        "velocity": 96,
+        "raw_start_seconds": 0.1,
+        "raw_end_seconds": 0.5,
+        "confidence": 0.75,
+        "pitch_bends": [0, 1],
+        "source": "audio",
+    }
+    assert body["note_events_artifact"]["kind"] == "note_events"
+    assert body["raw_midi_artifact"]["kind"] == "raw_midi"
+    assert body["provenance"]["model_name"] == "basic_pitch"
+    assert body["provenance"]["model_version"] == "0.4.0"
+    assert body["provenance"]["model_runtime"] == "tensorflow"
+    assert body["provenance"]["configuration"]["runtime_version"] == "2.15.0"
+    assert second.status_code == 200
+    assert second.json()["reused"] is True
+    assert len(commands) == 1
+
+    with client.app.state.session_factory() as session:
+        assert session.scalar(select(func.count(NoteEvent.id))) == 2
+        assert (
+            session.scalar(
+                select(func.count(Artifact.id)).where(
+                    Artifact.kind.in_([ArtifactKind.NOTE_EVENTS, ArtifactKind.RAW_MIDI])
+                )
+            )
+            == 2
+        )
+        run = session.scalar(select(ProcessingRun).where(ProcessingRun.stage == "transcription"))
+        assert run is not None
+        assert run.model_name == "basic_pitch"
+
+
+def test_transcribe_requires_normalized_audio(
+    client: TestClient,
+    wav_bytes: bytes,
+) -> None:
+    project = client.post("/api/projects", json={"title": "Needs normalization"}).json()
+    client.post(
+        f"/api/projects/{project['id']}/upload",
+        files={"file": ("performance.wav", wav_bytes, "audio/wav")},
+    )
+
+    response = client.post(f"/api/projects/{project['id']}/transcribe")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "normalized_audio_required"

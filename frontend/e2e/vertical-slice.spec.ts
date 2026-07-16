@@ -6,21 +6,27 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 function tinyWav(): Buffer {
-  const buffer = Buffer.alloc(46);
+  const sampleRate = 22050;
+  const sampleCount = sampleRate;
+  const dataSize = sampleCount * 2;
+  const buffer = Buffer.alloc(44 + dataSize);
   buffer.write("RIFF", 0);
-  buffer.writeUInt32LE(38, 4);
+  buffer.writeUInt32LE(36 + dataSize, 4);
   buffer.write("WAVE", 8);
   buffer.write("fmt ", 12);
   buffer.writeUInt32LE(16, 16);
   buffer.writeUInt16LE(1, 20);
   buffer.writeUInt16LE(1, 22);
-  buffer.writeUInt32LE(8000, 24);
-  buffer.writeUInt32LE(16000, 28);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
   buffer.writeUInt16LE(2, 32);
   buffer.writeUInt16LE(16, 34);
   buffer.write("data", 36);
-  buffer.writeUInt32LE(2, 40);
-  buffer.writeInt16LE(0, 44);
+  buffer.writeUInt32LE(dataSize, 40);
+  for (let index = 0; index < sampleCount; index += 1) {
+    const sample = Math.round(Math.sin((2 * Math.PI * 440 * index) / sampleRate) * 10000);
+    buffer.writeInt16LE(sample, 44 + index * 2);
+  }
   return buffer;
 }
 
@@ -62,7 +68,7 @@ function tinyMp4(): Buffer {
   }
 }
 
-test("creates a project, uploads a source, and prepares normalized audio", async ({ page }) => {
+test("creates a project, prepares audio, and runs raw transcription", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("API connected")).toBeVisible();
   await expect(page.getByText("Piano transcription", { exact: true })).toBeVisible();
@@ -85,6 +91,11 @@ test("creates a project, uploads a source, and prepares normalized audio", async
   await page.getByRole("button", { name: "Inspect and prepare audio" }).click();
   await expect(page.getByText("Media inspected and audio normalized")).toBeVisible();
   await expect(page.getByText("The normalized WAV is ready. Transcription has not started.")).toBeVisible();
+  await page.getByRole("button", { name: "Transcribe piano" }).click();
+  await expect(page.getByText("Raw transcription complete")).toBeVisible({ timeout: 60_000 });
+  await expect(
+    page.getByText("Raw MIDI and note-event JSON are saved. Quantization has not started."),
+  ).toBeVisible();
 });
 
 test("rejects a file whose contents do not match its audio extension", async ({ page }) => {

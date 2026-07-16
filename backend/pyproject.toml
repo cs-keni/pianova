@@ -27,6 +27,11 @@ dev = [
 ]
 transcription = [
   "basic-pitch==0.4.0",
+  "librosa==0.11.0",
+  "numpy==1.26.4",
+  "pretty-midi==0.2.11",
+  "scipy==1.17.1",
+  "tensorflow==2.15.0",
 ]
 
 [tool.hatch.build.targets.wheel]

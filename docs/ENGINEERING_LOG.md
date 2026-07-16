@@ -51,3 +51,13 @@
 - The frontend now makes processing explicit and displays duration, container, audio codec/channels/sample rate, and optional video dimensions while continuing to state that transcription has not started.
 - Windows rejected Uvicorn port 8000 with permission error 13 even though no process was listening. `netsh interface ipv4 show excludedportrange protocol=tcp` showed Hyper-V/WSL had reserved `7919-8818`. Local and Playwright defaults now use port 18080, with `PIANOVA_E2E_API_PORT` available for test overrides.
 - Verification baseline is now 32 backend tests, five component tests, a clean production build, and three live Chromium flows including real WAV and MP4 FFprobe/FFmpeg processing.
+
+## 2026-07-16 — Basic Pitch transcription and raw MIDI
+
+- Basic Pitch 0.4.0 resolves on Windows Python 3.11 with TensorFlow 2.15.0, NumPy 1.26.4, librosa 0.11.0, pretty-midi 0.2.11, and SciPy 1.17.1. A real generated WAV completed inference and produced both a note event and MIDI.
+- TensorFlow remains isolated in `.venv-transcription`. FastAPI probes and launches `app.transcription.worker` as a subprocess, so ordinary API startup, tests, and media preparation remain usable without the optional ML environment.
+- Alembic revision `20260716_0004` adds note confidence/pitch-bend evidence and ProcessingRun model/runtime/configuration provenance. Raw performance timing remains separate from future symbolic timing.
+- `POST /api/projects/{project_id}/transcribe` requires normalized input, validates versioned worker JSON, atomically finalizes note-event JSON and raw MIDI, persists notes/provenance, reuses successful output, and cleans partial/final files across failure paths.
+- Basic Pitch 0.4.0 crashes on a 0.01-second WAV because its analysis array is empty. A loaded-model experiment showed 0.05 seconds returns a valid empty result, so Pianova rejects inputs below 0.05 seconds before worker startup and covers the boundary with a regression test.
+- The frontend exposes explicit transcription and a bounded raw-note preview while stating that quantization has not started.
+- Verification baseline is now 43 backend tests, five component tests, a clean production build, and three live Chromium flows. The primary browser flow performs real FFprobe, FFmpeg, and Basic Pitch/TensorFlow processing.

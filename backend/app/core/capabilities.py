@@ -16,7 +16,13 @@ class Capability(BaseModel):
     reason: str | None = None
 
 
-def build_capabilities(*, ffmpeg: bool, ffprobe: bool, musescore: bool) -> list[Capability]:
+def build_capabilities(
+    *,
+    ffmpeg: bool,
+    ffprobe: bool,
+    musescore: bool,
+    transcription: bool,
+) -> list[Capability]:
     media_ready = ffmpeg and ffprobe
     return [
         Capability(
@@ -32,8 +38,12 @@ def build_capabilities(*, ffmpeg: bool, ffprobe: bool, musescore: bool) -> list[
         Capability(
             key="transcription",
             label="Piano transcription",
-            state=CapabilityState.NOT_IMPLEMENTED,
-            reason="The transcription pipeline has not been implemented yet.",
+            state=CapabilityState.AVAILABLE if transcription else CapabilityState.UNAVAILABLE,
+            reason=(
+                "Basic Pitch transcription and raw MIDI generation are ready."
+                if transcription
+                else "Install the isolated Basic Pitch transcription environment."
+            ),
         ),
         Capability(
             key="musicxml",

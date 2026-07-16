@@ -1,0 +1,1 @@
+"""Typed transcription worker boundary."""

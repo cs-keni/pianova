@@ -19,8 +19,8 @@ const health = {
     {
       key: "transcription",
       label: "Piano transcription",
-      state: "not_implemented",
-      reason: "The transcription pipeline has not been implemented yet.",
+      state: "available",
+      reason: "Basic Pitch transcription and raw MIDI generation are ready.",
     },
   ],
 };
@@ -72,7 +72,7 @@ describe("Pianova home", () => {
     expect(await screen.findByText("API connected")).toBeInTheDocument();
     expect(screen.getByText("Media normalization")).toBeInTheDocument();
     expect(screen.getByText("Piano transcription")).toBeInTheDocument();
-    expect(screen.getByText("not implemented")).toBeInTheDocument();
+    expect(screen.getAllByText("available")).toHaveLength(2);
   });
 
   it("creates a project once and advances to upload", async () => {
@@ -142,7 +142,7 @@ describe("Pianova home", () => {
     expect(screen.getByRole("button", { name: "Inspect and prepare audio" })).toBeInTheDocument();
   });
 
-  it("shows inspected metadata without claiming transcription", async () => {
+  it("shows inspected metadata and runs explicit raw transcription", async () => {
     const uploadedProject = {
       ...project,
       status: "uploaded",
@@ -201,6 +201,50 @@ describe("Pianova home", () => {
           }),
         );
       }
+      if (url.endsWith("/api/projects/project-1/transcribe")) {
+        return Promise.resolve(
+          jsonResponse({
+            project: processedProject,
+            note_events_artifact: {
+              id: 3,
+              kind: "note_events",
+              relative_path: "projects/project-1/note-events-test.json",
+              size_bytes: 1200,
+              created_at: "2026-07-16T00:00:01Z",
+            },
+            raw_midi_artifact: {
+              id: 4,
+              kind: "raw_midi",
+              relative_path: "projects/project-1/raw-midi-test.mid",
+              size_bytes: 240,
+              created_at: "2026-07-16T00:00:01Z",
+            },
+            note_count: 1,
+            preview_notes: [
+              {
+                id: 1,
+                pitch: 69,
+                velocity: 74,
+                raw_start_seconds: 0.02,
+                raw_end_seconds: 0.23,
+                confidence: 0.58,
+                pitch_bends: [1, 1],
+                source: "audio",
+              },
+            ],
+            provenance: {
+              run_id: 2,
+              model_name: "basic_pitch",
+              model_version: "0.4.0",
+              model_runtime: "tensorflow",
+              configuration: {
+                runtime_version: "2.15.0",
+              },
+            },
+            reused: false,
+          }),
+        );
+      }
       return Promise.reject(new Error(`Unexpected request: ${url}`));
     });
     const user = userEvent.setup();
@@ -221,6 +265,15 @@ describe("Pianova home", () => {
     expect(screen.getByText("44.1 kHz")).toBeInTheDocument();
     expect(
       screen.getByText("The normalized WAV is ready. Transcription has not started."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Transcribe piano" }));
+
+    expect(await screen.findByText("Raw transcription complete")).toBeInTheDocument();
+    expect(screen.getByText("1 detected note · basic_pitch 0.4.0")).toBeInTheDocument();
+    expect(screen.getByText("A4")).toBeInTheDocument();
+    expect(screen.getByText("58%")).toBeInTheDocument();
+    expect(
+      screen.getByText("Raw MIDI and note-event JSON are saved. Quantization has not started."),
     ).toBeInTheDocument();
   });
 });

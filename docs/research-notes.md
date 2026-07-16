@@ -4,9 +4,11 @@ This file records model and music-engineering questions that affect implementati
 
 ## Automatic music transcription
 
-Spotify Basic Pitch 0.4.0 is the initial candidate because it produces polyphonic pitch events and MIDI without training a model. Its declared Python support stops at 3.11, so Pianova pins the project runtime to Python 3.11 and keeps transcription dependencies optional. The ordinary API must remain usable when the ML stack is absent.
+Spotify Basic Pitch 0.4.0 is the implemented first transcriber because it produces polyphonic pitch events and MIDI without training a model. Its Python support stops at 3.11, so Pianova uses a separate `.venv-transcription` and keeps the ordinary API usable when the ML stack is absent.
 
-Before integration, test Basic Pitch with its TensorFlow, NumPy, librosa, and platform dependencies in the optional environment. The transcriber boundary should make model replacement possible without changing downstream note-event contracts.
+The verified Windows Python 3.11 stack is Basic Pitch 0.4.0, TensorFlow 2.15.0, NumPy 1.26.4, librosa 0.11.0, pretty-midi 0.2.11, and SciPy 1.17.1. A real generated WAV completed prediction and emitted both a note event and MIDI. The API launches this environment as a subprocess and validates a versioned JSON contract, so a future transcriber can replace the worker without changing downstream raw-note persistence.
+
+Basic Pitch 0.4.0 fails internally on extremely short audio because its analysis array is empty. Experiments showed 0.01 seconds fails while 0.05 seconds produces a valid empty result, so Pianova rejects sources shorter than 0.05 seconds before model startup. This is an operational guard, not a musical-quality claim.
 
 The verified media input boundary now produces mono 22.05 kHz 16-bit PCM WAV. This standardizes model inputs without applying loudness normalization, preserving performance dynamics for later velocity and expression work. Revisit the sample rate only if Basic Pitch compatibility or measured accuracy requires it.
 
