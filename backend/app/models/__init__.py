@@ -1,3 +1,3 @@
-from app.models.entities import Artifact, NoteEvent, ProcessingRun, Project
+from app.models.entities import Artifact, MediaStream, NoteEvent, ProcessingRun, Project
 
-__all__ = ["Artifact", "NoteEvent", "ProcessingRun", "Project"]
+__all__ = ["Artifact", "MediaStream", "NoteEvent", "ProcessingRun", "Project"]

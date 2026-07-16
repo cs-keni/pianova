@@ -2,43 +2,45 @@
 
 ## Active milestone
 
-The `first.md` initial local scaffold and secure-upload vertical slice is complete.
+The FFprobe inspection and FFmpeg normalized-WAV milestone is implemented.
 
 ## Status
 
-All 18 first-task deliverables now have implemented or documented coverage. Pianova can report local dependencies and capabilities, create a migrated SQLite project, securely store a supported piano source, and show the result in the Next.js interface. Unfinished media, transcription, MIDI, notation, rendering, and editing stages remain explicit.
+Pianova can now create a project, securely store a supported source, explicitly inspect it, persist typed container and stream metadata, and generate a retry-safe mono 22.05 kHz PCM WAV artifact. The Next.js interface displays duration, codec, channel/sample-rate, and optional video metadata. Transcription remains explicit and unstarted.
 
 ## Verified behavior
 
-- Windows Python 3.11 environment and native Windows npm installation.
-- Ruff and strict mypy pass across 24 backend source files.
-- 24 pytest tests pass using temporary Alembic-migrated SQLite databases.
-- `alembic check` reports no schema drift.
+- Native Windows Python 3.11.9, FFprobe 8.0, and FFmpeg 8.0 are available in the runtime used by FastAPI.
+- Ruff and strict mypy pass across 25 backend source files.
+- 32 pytest tests pass using temporary Alembic-migrated SQLite databases.
+- `alembic check` reports no schema drift after revision `20260716_0003`.
 - ESLint and TypeScript pass.
-- Four Vitest component tests pass.
+- Five Vitest component tests pass.
 - The optimized Next.js production build passes.
-- Two Playwright tests pass against live FastAPI and Next.js servers: one accepts a valid WAV and one rejects mismatched contents.
+- Three Playwright tests pass against live FastAPI and Next.js servers. The audio and video success flows perform real FFprobe inspection and FFmpeg normalization; the rejection flow blocks mismatched contents.
 
 ## Approved decisions preserved
 
-- Basic Pitch remains an optional Python 3.11 dependency boundary.
-- Alembic owns schema creation.
-- Uploads stream to project-local temporary files, enforce size while reading, validate the media signature, atomically finalize, then commit metadata with compensation cleanup.
-- Cached backend capability states are the source of truth; unfinished stages report `not_implemented`.
-- MusicXML must remain independent from optional MuseScore rendering.
+- FFprobe output is parsed into typed project fields and `MediaStream` rows rather than stored as an opaque JSON blob.
+- Normalized audio is mono, 22.05 kHz, 16-bit PCM WAV. No loudness filter is applied, preserving dynamics for later velocity work.
+- Media processing is explicit and synchronous with separate bounded FFprobe/FFmpeg timeouts.
+- Generated output uses a hidden temporary file, validates non-empty output, atomically finalizes, then commits metadata and the Artifact.
+- Failed attempts remove partial/finalized output, record a failed ProcessingRun when possible, and remain retryable.
+- Successful repeat requests return the existing normalized Artifact instead of duplicating work.
+- Basic Pitch remains an optional Python 3.11 dependency boundary and has not been installed or represented as working.
 
 ## Next milestone
 
-Implement media inspection and normalized WAV generation:
+Implement basic transcription and raw MIDI:
 
-1. Run FFprobe with safe arguments and a bounded timeout.
-2. Persist stream, codec, duration, and media metadata.
-3. Display inspected metadata in the frontend.
-4. Extract/normalize audio with FFmpeg into a new Artifact.
-5. Test audio and video success, invalid/undecodable media, missing tools, timeouts, cleanup, and repeat processing.
+1. Run an isolated Basic Pitch 0.4.0 compatibility spike against Windows Python 3.11, TensorFlow, NumPy, and librosa.
+2. Define a typed transcriber interface that consumes the normalized WAV Artifact.
+3. Persist raw note events without overwriting performed timing.
+4. Generate raw MIDI and retain model/version/config provenance.
+5. Add model-unavailable, inference-failure, malformed-output, cleanup, retry, and live workflow coverage.
 
-Do not begin Basic Pitch integration until this media boundary is verified.
+Do not begin quantization, hand assignment, MusicXML, or score rendering until the raw transcription boundary is measured and verified.
 
 ## Active blockers
 
-None. For the `/mnt/c` checkout, use Windows Python and native Windows npm. FFmpeg must also be installed or configured in the runtime environment that launches FastAPI before the next milestone can pass real media checks.
+None for the completed media milestone. The next milestone must resolve the optional Basic Pitch dependency stack before implementation.

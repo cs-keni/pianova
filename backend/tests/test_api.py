@@ -1,7 +1,12 @@
+import json
+import subprocess
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 
-def test_health_reports_real_and_unfinished_capabilities(client: TestClient) -> None:
+def test_health_reports_media_capability_and_unfinished_stages(client: TestClient) -> None:
     response = client.get("/api/health")
 
     assert response.status_code == 200
@@ -13,7 +18,7 @@ def test_health_reports_real_and_unfinished_capabilities(client: TestClient) -> 
         "musescore": False,
     }
     capabilities = {item["key"]: item["state"] for item in body["capabilities"]}
-    assert capabilities["media_normalization"] == "not_implemented"
+    assert capabilities["media_normalization"] == "available"
     assert capabilities["transcription"] == "not_implemented"
     assert capabilities["musicxml"] == "not_implemented"
     assert capabilities["score_rendering"] == "not_implemented"
@@ -147,3 +152,91 @@ def test_upload_enforces_streaming_size_limit(client: TestClient, wav_bytes: byt
 
     assert response.status_code == 413
     assert response.json()["error"]["code"] == "upload_too_large"
+
+
+def test_process_media_persists_probe_metadata_and_normalized_artifact(
+    client: TestClient,
+    wav_bytes: bytes,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = client.post("/api/projects", json={"title": "Media processing"}).json()
+    client.post(
+        f"/api/projects/{project['id']}/upload",
+        files={"file": ("performance.wav", wav_bytes, "audio/wav")},
+    )
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        if command[0] == "ffprobe":
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                json.dumps(
+                    {
+                        "streams": [
+                            {
+                                "index": 0,
+                                "codec_type": "audio",
+                                "codec_name": "pcm_s16le",
+                                "codec_long_name": "PCM signed 16-bit little-endian",
+                                "duration": "1.25",
+                                "bit_rate": "352800",
+                                "sample_rate": "22050",
+                                "channels": 2,
+                                "channel_layout": "stereo",
+                            }
+                        ],
+                        "format": {
+                            "format_name": "wav",
+                            "duration": "1.25",
+                            "bit_rate": "353000",
+                        },
+                    }
+                ),
+                "",
+            )
+        Path(command[-1]).write_bytes(b"RIFF-normalized")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("app.services.media.subprocess.run", fake_run)
+
+    first = client.post(f"/api/projects/{project['id']}/process-media")
+    second = client.post(f"/api/projects/{project['id']}/process-media")
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["reused"] is False
+    assert body["project"]["duration_seconds"] == 1.25
+    assert body["project"]["container_format"] == "wav"
+    assert body["project"]["source_bit_rate"] == 353000
+    assert body["project"]["media_streams"] == [
+        {
+            "stream_index": 0,
+            "stream_type": "audio",
+            "codec_name": "pcm_s16le",
+            "codec_long_name": "PCM signed 16-bit little-endian",
+            "duration_seconds": 1.25,
+            "bit_rate": 352800,
+            "sample_rate": 22050,
+            "channels": 2,
+            "channel_layout": "stereo",
+            "width": None,
+            "height": None,
+            "frame_rate": None,
+        }
+    ]
+    assert body["normalized_artifact"]["kind"] == "normalized_audio"
+    assert body["normalized_artifact"]["relative_path"].endswith(".wav")
+    assert second.status_code == 200
+    assert second.json()["reused"] is True
+    assert len(commands) == 2
+
+
+def test_process_media_requires_an_uploaded_source(client: TestClient) -> None:
+    project = client.post("/api/projects", json={"title": "No source"}).json()
+
+    response = client.post(f"/api/projects/{project['id']}/process-media")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "source_not_uploaded"

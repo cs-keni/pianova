@@ -50,7 +50,7 @@ Infrastructure tests use generated fixtures. Model benchmarks and musical-qualit
 
 ## Current baseline
 
-No transcription baseline exists because the model pipeline is not implemented. The current vertical-slice baseline is operational: 24 backend tests, four frontend component tests, a production build, and two live Playwright upload flows covering acceptance and rejection.
+No transcription baseline exists because the model pipeline is not implemented. The current vertical-slice baseline is operational: 32 backend tests, five frontend component tests, a production build, and three live Playwright flows. Native Windows FFprobe/FFmpeg inspect and normalize generated WAV and MP4 fixtures; the rejection flow blocks mismatched contents.
 
 ## Known limitations
 

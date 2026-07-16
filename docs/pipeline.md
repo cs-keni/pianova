@@ -7,8 +7,8 @@ The current product implements project creation and secure source ingestion. Eve
 | Project creation | Valid title, 1-120 characters | Project row and UUID directory | Validation, database commit, directory creation | Implemented |
 | Upload validation | Project ID and multipart source | Validated temporary file | Missing project, unsupported extension, empty file, byte limit, signature mismatch | Implemented |
 | Upload finalization | Valid temporary file | `source-<UUID>.<ext>` and source Artifact row | Atomic rename or metadata commit failure | Implemented |
-| Media inspection | Source artifact | Duration, streams, codec metadata | Missing FFprobe, undecodable input, timeout | Next milestone |
-| Audio normalization | Valid media | Normalized WAV artifact | Missing FFmpeg, codec failure, disk exhaustion | Not implemented |
+| Media inspection | Source artifact | Duration, container, bit rate, typed stream rows | Missing FFprobe, undecodable input, missing audio/duration, timeout | Implemented |
+| Audio normalization | Valid inspected media | Mono 22.05 kHz PCM WAV artifact | Missing FFmpeg, codec failure, timeout, disk or commit failure | Implemented |
 | Transcription | Normalized WAV | Raw typed note events | Model load/inference failure, unsupported environment | Not implemented |
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization failure | Not implemented |
 | Symbolic cleanup | Raw timing and pitch | Tempo, beats, quantized notes, hands, voices | Ambiguous rhythm, meter, hand, or spelling | Not implemented |
@@ -24,9 +24,15 @@ M4A, MP4, and MOV share ISO base media signatures, so those detected containers 
 
 On success, the project becomes `uploaded`, original display metadata is recorded, and a `source` Artifact points to the generated relative path. Transcription is not triggered.
 
+## Implemented media-processing contract
+
+`POST /api/projects/{project_id}/process-media` is explicit and synchronous. FFprobe runs with safe arguments, JSON output, and the configured inspection timeout. Pianova persists project duration/container/bit rate and one typed `MediaStream` row per reported stream. Sources without audio or a positive duration are rejected.
+
+FFmpeg maps the first audio stream, removes video, and writes mono 22.05 kHz 16-bit PCM WAV to a hidden temporary path. The service atomically finalizes the generated filename and commits the normalized Artifact, metadata, and successful ProcessingRun together. Timeouts and failures remove partial output and leave the source retryable. Repeated successful requests reuse the existing normalized Artifact.
+
 ## Generated artifacts
 
-All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Only source artifacts are currently produced.
+All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Source and normalized-audio artifacts are currently produced.
 
 ## Configuration
 
@@ -34,6 +40,10 @@ All artifact kinds are reserved in the schema: source, normalized audio, note-ev
 - `PIANOVA_MAX_UPLOAD_MB`: streaming upload limit.
 - `PIANOVA_FFMPEG_PATH`, `PIANOVA_FFPROBE_PATH`, `PIANOVA_MUSESCORE_PATH`: executable overrides.
 - `PIANOVA_DEPENDENCY_PROBE_TIMEOUT_SECONDS`: probe timeout, default 3 seconds.
+- `PIANOVA_MEDIA_INSPECTION_TIMEOUT_SECONDS`: FFprobe processing timeout, default 30 seconds.
+- `PIANOVA_MEDIA_NORMALIZATION_TIMEOUT_SECONDS`: FFmpeg processing timeout, default 300 seconds.
+- `PIANOVA_NORMALIZED_SAMPLE_RATE`: output rate, default 22050 Hz.
+- `PIANOVA_NORMALIZED_CHANNELS`: output channels, default mono.
 - `PIANOVA_DATABASE_URL`: SQLite or another SQLAlchemy URL.
 
 Related: [architecture](architecture.md), [data model](data-model.md), and the root [run guide](../README.md#run-pianova).

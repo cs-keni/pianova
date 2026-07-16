@@ -2,18 +2,20 @@
 
 > Hear it. See it. Play it.
 
-Pianova is a local-first, AI-assisted piano transcription application. The first working slice creates a project, securely stores an MP3, WAV, M4A, MP4, or MOV source, and reports which local processing capabilities are actually available. Transcription and score generation remain explicitly unfinished.
+Pianova is a local-first, AI-assisted piano transcription application. The current working slice creates a project, securely stores an MP3, WAV, M4A, MP4, or MOV source, inspects its streams with FFprobe, and creates a normalized WAV with FFmpeg. Transcription and score generation remain explicitly unfinished.
 
 ## What works now
 
 - FastAPI health and configuration APIs with cached FFmpeg, FFprobe, and MuseScore probes.
 - SQLite projects managed through SQLAlchemy and Alembic migrations.
 - Streamed uploads with a configurable byte limit, generated filenames, media-signature validation, atomic finalization, and failure cleanup.
-- A responsive Next.js interface for API status, project creation, and source upload.
+- Typed FFprobe persistence for duration, container, bit rate, codecs, audio channels/sample rate, and video dimensions.
+- Retry-safe FFmpeg normalization to mono 22.05 kHz PCM WAV with temporary-file cleanup and atomic finalization.
+- A responsive Next.js interface for API status, project creation, source upload, explicit media processing, and inspected metadata.
 - Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
 - Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
-Not implemented: media normalization, transcription, MIDI, MusicXML, PDF rendering, note editing, or Synthesia analysis. The interface never presents these stages as working.
+Not implemented: transcription, MIDI, MusicXML, PDF rendering, note editing, or Synthesia analysis. The interface never presents these stages as working.
 
 ## Screenshots
 
@@ -25,11 +27,13 @@ The current interface is available after starting both local servers. Add stable
 Browser (Next.js)
   |  GET /api/health, GET /api/config, GET /api/dependencies
   |  POST /api/projects, POST /api/projects/{id}/upload
+  |  POST /api/projects/{id}/process-media
   v
 FastAPI
   +-- typed settings, errors, capabilities, dependency probes
   +-- SQLAlchemy sessions --> SQLite (Alembic migrations)
   +-- upload service ------> workspace/projects/<UUID>/source-<UUID>.<ext>
+  +-- media service -------> FFprobe metadata + normalized-<UUID>.wav
 ```
 
 FastAPI owns persistence and local artifacts. The frontend consumes typed HTTP contracts and never imports backend code. Later processing stages will consume typed musical models without depending on the UI. See [architecture](docs/architecture.md), [pipeline](docs/pipeline.md), and [data model](docs/data-model.md).
@@ -108,7 +112,7 @@ Start the API in one terminal:
 ```powershell
 cd C:\dev\pianova\backend
 ..\.venv\Scripts\python.exe -m alembic upgrade head
-..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+..\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 18080
 ```
 
 Start the frontend in another terminal:
@@ -118,11 +122,11 @@ cd C:\dev\pianova\frontend
 npm run dev
 ```
 
-Open `http://localhost:3000`. API documentation is at `http://127.0.0.1:8000/docs`.
+Open `http://localhost:3000`. API documentation is at `http://127.0.0.1:18080/docs`.
 
 ## Verify the implemented slice
 
-Create a project in the browser, choose a supported piano file, and upload it. Success means the page reports `Source file secured` and explicitly says transcription has not started. The source is stored under `workspace/projects/<project-id>/` with a generated filename.
+Create a project in the browser, choose a supported piano file, upload it, then select **Inspect and prepare audio**. Success means the page displays duration and stream metadata and reports `Media inspected and audio normalized`. The source and generated PCM WAV are stored under `workspace/projects/<project-id>/`; transcription still does not start.
 
 Run backend checks from `backend/`:
 
@@ -143,21 +147,22 @@ npm run build
 npm run test:e2e
 ```
 
-Playwright starts both local servers through a platform-aware Python launcher, creates real migrated
-projects, accepts a small WAV fixture, and rejects content that only pretends to be WAV.
+Playwright starts both local servers through a platform-aware Python launcher on API port 18080,
+creates real migrated projects, runs FFprobe and FFmpeg on a small WAV fixture, and rejects content
+that only pretends to be WAV. Override the test API port with `PIANOVA_E2E_API_PORT`.
 
 ## Configuration
 
-All backend variables use the `PIANOVA_` prefix. The main settings are database URL, workspace directory, FFmpeg/FFprobe/MuseScore executable paths, maximum upload size, log level, and allowed local frontend origins. Backend defaults are in [.env.example](.env.example). `NEXT_PUBLIC_PIANOVA_API_URL` selects the frontend API base URL and belongs in `frontend/.env.local`; see [frontend/.env.example](frontend/.env.example).
+All backend variables use the `PIANOVA_` prefix. The main settings are database URL, workspace directory, FFmpeg/FFprobe/MuseScore executable paths, upload size, subprocess timeouts, normalized sample rate/channels, log level, and allowed local frontend origins. Backend defaults are in [.env.example](.env.example). `NEXT_PUBLIC_PIANOVA_API_URL` selects the frontend API base URL and belongs in `frontend/.env.local`; see [frontend/.env.example](frontend/.env.example).
 
 ## Supported source formats
 
-MP3, WAV, M4A, MP4, and MOV are accepted. Pianova does not trust the extension alone: the upload service compares it with the detected file signature. FFprobe decodability and duration inspection belong to the next milestone.
+MP3, WAV, M4A, MP4, and MOV are accepted. Pianova does not trust the extension alone: the upload service compares it with the detected file signature. FFprobe then proves decodability, records all streams, and requires an audio stream and positive duration before normalization.
 
 ## Limitations
 
 - A successful upload proves safe local storage, not audio validity beyond its media signature.
-- FFmpeg availability is reported, but normalization is not wired into the processing pipeline yet.
+- Media processing is synchronous; very long files may keep one API request open until a later worker milestone.
 - MuseScore absence never blocks project creation or future MusicXML export.
 - Projects cannot yet be listed, renamed, deleted, or reprocessed through the UI.
 - Upload progress is represented as a pending state, not a byte-level progress bar.
@@ -165,7 +170,8 @@ MP3, WAV, M4A, MP4, and MOV are accepted. Pianova does not trust the extension a
 ## Troubleshooting
 
 - `py -3.11` missing: install Python 3.11 and recreate `.venv`.
-- Frontend shows `API offline`: confirm Uvicorn is listening on port 8000 and `NEXT_PUBLIC_PIANOVA_API_URL` matches it.
+- Frontend shows `API offline`: confirm Uvicorn is listening on port 18080 and `NEXT_PUBLIC_PIANOVA_API_URL` matches it.
+- Windows reports bind permission error 13: inspect `netsh interface ipv4 show excludedportrange protocol=tcp`; Hyper-V/WSL can reserve port 8000. Pianova uses 18080 by default to avoid the observed reserved range.
 - Browser reports a CORS failure: use `localhost:3000` or `127.0.0.1:3000`, both included by default, or update `PIANOVA_CORS_ORIGINS`.
 - npm rename errors under `/mnt/c`: use native Windows npm or move the clone to WSL's ext4 filesystem.
 - Migration errors: run `alembic upgrade head` from `backend/` before starting the API.
@@ -187,7 +193,7 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 
 ## Roadmap
 
-Secure upload is complete. Next: FFprobe inspection and normalized WAV, then real transcription, raw MIDI, readable quantization and hand separation, MusicXML, optional score rendering, correction tools, evaluation, and finally Synthesia analysis. See the [milestone roadmap](docs/roadmap.md).
+Secure upload and normalized media preparation are complete. Next: real transcription and raw MIDI, then readable quantization and hand separation, MusicXML, optional score rendering, correction tools, evaluation, and finally Synthesia analysis. See the [milestone roadmap](docs/roadmap.md).
 
 ## License
 

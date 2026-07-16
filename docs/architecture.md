@@ -9,7 +9,7 @@ Next.js browser UI
   | typed JSON and multipart HTTP
   v
 FastAPI routes
-  |-- services: project lifecycle and safe storage
+  |-- services: project lifecycle, safe storage, media inspection, normalization
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
   v
@@ -41,9 +41,23 @@ stream to hidden temp file
 
 The ASGI boundary rejects oversized multipart bodies before form parsing, while the storage service independently enforces the source-byte limit. This favors consistent database/filesystem state over raw upload throughput. It also prevents client filenames from becoming storage paths or client MIME claims from becoming trusted metadata.
 
+Media preparation is an explicit synchronous action after upload:
+
+```text
+source Artifact
+  -> FFprobe JSON with a bounded timeout
+  -> validate audio stream and positive duration
+  -> FFmpeg mono 22.05 kHz PCM WAV in a temporary path
+  -> atomic rename
+  -> commit Project metadata, MediaStream rows, normalized Artifact, ProcessingRun
+  -> remove temporary/final output and record a failed run on error
+```
+
+Completed normalized artifacts are idempotent: repeated requests return the existing file. Failed attempts do not create an Artifact and may be retried.
+
 ## External executables
 
-FFmpeg, FFprobe, and MuseScore are configured by optional explicit paths or normal executable discovery. Each probe uses an argument list, captures output, and has a bounded timeout. The cached result feeds the capability registry; request handlers do not repeatedly launch subprocesses.
+FFmpeg, FFprobe, and MuseScore are configured by optional explicit paths or normal executable discovery. Startup probes use argument lists and bounded timeouts; the cached paths feed the capability registry and media service. Media subprocesses use separate configurable inspection and normalization timeouts.
 
 ## Capability truth
 
@@ -63,7 +77,8 @@ Basic Pitch is an optional dependency group, not part of ordinary API developmen
 
 - One FastAPI process is simpler than a local queue, but long processing will eventually require a small worker boundary.
 - SQLite and local files match the single-user product, but do not provide distributed coordination.
-- Signature validation is fast and safe for upload acceptance, but FFprobe must still prove decodability in the next milestone.
+- Signature validation is fast and safe for upload acceptance; FFprobe separately proves decodability and extracts typed metadata.
 - Cached dependency states avoid repeated subprocess cost, but executable changes require an application restart.
+- Synchronous normalization is simple and visible but holds one API request open; a local worker remains deferred until real file durations justify it.
 
 Related: [pipeline](pipeline.md), [data model](data-model.md), and [roadmap](roadmap.md).

@@ -17,7 +17,7 @@ def test_capabilities_require_both_ffmpeg_tools() -> None:
         item.key: item for item in build_capabilities(ffmpeg=True, ffprobe=False, musescore=True)
     }
 
-    assert capabilities["media_normalization"].state is CapabilityState.NOT_IMPLEMENTED
+    assert capabilities["media_normalization"].state is CapabilityState.UNAVAILABLE
     assert capabilities["transcription"].state is CapabilityState.NOT_IMPLEMENTED
     assert capabilities["score_rendering"].state is CapabilityState.NOT_IMPLEMENTED
 

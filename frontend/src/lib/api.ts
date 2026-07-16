@@ -36,8 +36,27 @@ export interface Project {
   original_filename: string | null;
   media_type: string | null;
   source_size_bytes: number | null;
+  duration_seconds: number | null;
+  container_format: string | null;
+  source_bit_rate: number | null;
+  media_streams: MediaStream[];
   created_at: string;
   updated_at: string;
+}
+
+export interface MediaStream {
+  stream_index: number;
+  stream_type: "audio" | "video" | "other";
+  codec_name: string | null;
+  codec_long_name: string | null;
+  duration_seconds: number | null;
+  bit_rate: number | null;
+  sample_rate: number | null;
+  channels: number | null;
+  channel_layout: string | null;
+  width: number | null;
+  height: number | null;
+  frame_rate: string | null;
 }
 
 export interface UploadResponse {
@@ -47,6 +66,27 @@ export interface UploadResponse {
   detected_type: string;
 }
 
+export interface Artifact {
+  id: number;
+  kind:
+    | "source"
+    | "normalized_audio"
+    | "note_events"
+    | "raw_midi"
+    | "clean_midi"
+    | "musicxml"
+    | "pdf";
+  relative_path: string;
+  size_bytes: number;
+  created_at: string;
+}
+
+export interface MediaProcessResponse {
+  project: Project;
+  normalized_artifact: Artifact;
+  reused: boolean;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -54,7 +94,7 @@ interface ErrorEnvelope {
   };
 }
 
-const API_URL = process.env.NEXT_PUBLIC_PIANOVA_API_URL ?? "http://127.0.0.1:8000";
+const API_URL = process.env.NEXT_PUBLIC_PIANOVA_API_URL ?? "http://127.0.0.1:18080";
 
 export class ApiError extends Error {
   constructor(
@@ -72,7 +112,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     response = await fetch(`${API_URL}${path}`, init);
   } catch {
     throw new ApiError(
-      "Pianova could not reach the local API. Start the backend on port 8000 and try again.",
+      "Pianova could not reach the local API. Start the backend on port 18080 and try again.",
       "backend_unreachable",
       0,
     );
@@ -106,4 +146,8 @@ export const api = {
       body,
     });
   },
+  processMedia: (projectId: string) =>
+    request<MediaProcessResponse>(`/api/projects/${projectId}/process-media`, {
+      method: "POST",
+    }),
 };

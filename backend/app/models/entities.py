@@ -48,6 +48,12 @@ class ProcessingStatus(enum.StrEnum):
     FAILED = "failed"
 
 
+class MediaStreamType(enum.StrEnum):
+    AUDIO = "audio"
+    VIDEO = "video"
+    OTHER = "other"
+
+
 class Project(Base):
     __tablename__ = "projects"
 
@@ -59,6 +65,9 @@ class Project(Base):
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     media_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    container_format: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_bit_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -72,6 +81,12 @@ class Project(Base):
     )
     processing_runs: Mapped[list["ProcessingRun"]] = relationship(
         back_populates="project", passive_deletes=True
+    )
+    media_streams: Mapped[list["MediaStream"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="MediaStream.stream_index",
     )
 
 
@@ -106,6 +121,30 @@ class Artifact(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     project: Mapped[Project] = relationship(back_populates="artifacts")
+
+
+class MediaStream(Base):
+    __tablename__ = "media_streams"
+    __table_args__ = (
+        UniqueConstraint("project_id", "stream_index", name="uq_media_stream_project_index"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    stream_index: Mapped[int] = mapped_column(Integer)
+    stream_type: Mapped[MediaStreamType] = mapped_column(Enum(MediaStreamType, native_enum=False))
+    codec_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    codec_long_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    bit_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sample_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    channels: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    channel_layout: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    frame_rate: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    project: Mapped[Project] = relationship(back_populates="media_streams")
 
 
 class ProcessingRun(Base):

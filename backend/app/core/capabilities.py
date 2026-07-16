@@ -22,11 +22,11 @@ def build_capabilities(*, ffmpeg: bool, ffprobe: bool, musescore: bool) -> list[
         Capability(
             key="media_normalization",
             label="Media normalization",
-            state=CapabilityState.NOT_IMPLEMENTED,
+            state=CapabilityState.AVAILABLE if media_ready else CapabilityState.UNAVAILABLE,
             reason=(
-                "FFmpeg and FFprobe are ready, but normalization is not implemented yet."
+                "FFprobe inspection and FFmpeg WAV normalization are ready."
                 if media_ready
-                else "Normalization is not implemented; FFmpeg and FFprobe are also required."
+                else "FFmpeg and FFprobe are required for media processing."
             ),
         ),
         Capability(

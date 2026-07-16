@@ -41,3 +41,13 @@
 - The same review corrected capability truthfulness, enabled SQLite foreign-key cascades, enforced a one-source database invariant, stored detected rather than claimed MIME, added raw multipart limits and generic structured errors, and hardened filesystem/database compensation paths.
 - Review-driven coverage raised the baseline to 24 backend tests and two live Playwright flows. The browser launcher is now platform-aware, and frontend environment overrides live in `frontend/.env.local` where Next.js loads them.
 - The one-source invariant uses follow-up Alembic revision `20260714_0002` instead of rewriting the already-applied initial migration, preserving upgrades for existing local databases.
+
+## 2026-07-16 — FFprobe inspection and FFmpeg normalization
+
+- Native Windows Python 3.11.9 sees FFprobe and FFmpeg 8.0 from the WinGet Gyan build, so the media milestone uses the same runtime that launches FastAPI.
+- Alembic revision `20260716_0003` adds project duration/container/bit-rate fields and a typed `media_streams` table. Stream metadata is queryable and preserves audio, video, and unknown stream evidence rather than storing opaque probe JSON.
+- `POST /api/projects/{project_id}/process-media` runs bounded FFprobe inspection, requires an audio stream and positive duration, and generates mono 22.05 kHz PCM16 WAV without loudness filtering.
+- Normalization writes a hidden temporary WAV, checks non-empty output, atomically finalizes, then commits metadata, the normalized Artifact, and the successful ProcessingRun. Failure paths remove output, record failure when possible, and remain retryable; successful repeats reuse the existing artifact.
+- The frontend now makes processing explicit and displays duration, container, audio codec/channels/sample rate, and optional video dimensions while continuing to state that transcription has not started.
+- Windows rejected Uvicorn port 8000 with permission error 13 even though no process was listening. `netsh interface ipv4 show excludedportrange protocol=tcp` showed Hyper-V/WSL had reserved `7919-8818`. Local and Playwright defaults now use port 18080, with `PIANOVA_E2E_API_PORT` available for test overrides.
+- Verification baseline is now 32 backend tests, five component tests, a clean production build, and three live Chromium flows including real WAV and MP4 FFprobe/FFmpeg processing.

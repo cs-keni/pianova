@@ -8,6 +8,8 @@ Spotify Basic Pitch 0.4.0 is the initial candidate because it produces polyphoni
 
 Before integration, test Basic Pitch with its TensorFlow, NumPy, librosa, and platform dependencies in the optional environment. The transcriber boundary should make model replacement possible without changing downstream note-event contracts.
 
+The verified media input boundary now produces mono 22.05 kHz 16-bit PCM WAV. This standardizes model inputs without applying loudness normalization, preserving performance dynamics for later velocity and expression work. Revisit the sample rate only if Basic Pitch compatibility or measured accuracy requires it.
+
 ## Symbolic reconstruction
 
 Pitch detection is not the same as readable notation. Evaluation must separate raw timing accuracy from musical interpretation. Candidate approaches include:

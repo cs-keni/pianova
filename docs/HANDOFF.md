@@ -2,35 +2,36 @@
 
 ## What changed
 
-- Recovered and checkpointed the previously untracked scaffold.
-- Resolved toolchains with Windows Python 3.11 and native Windows npm.
-- Implemented typed settings, logging, structured errors, cached executable probes, and truthful capability states.
-- Added SQLAlchemy Project, Artifact, NoteEvent, and ProcessingRun models plus the initial Alembic migration.
-- Added health, config, dependencies, project-creation, and secure-upload APIs.
-- Implemented raw-request and streamed byte limits, extension/signature checks, detected MIME storage, generated project-local filenames, one-source invariants, atomic finalization, and compensation cleanup.
-- Replaced the generated Next.js page with a responsive Pianova status/create/upload workflow and a typed API client.
-- Added backend, component, and live Playwright tests.
-- Added the root run guide and the six architecture/pipeline/data/roadmap/research/evaluation documents required by `first.md`.
+- Added Alembic revision `20260716_0003` with project duration/container/bit-rate fields and typed `media_streams`.
+- Added a synchronous `POST /api/projects/{project_id}/process-media` boundary.
+- Implemented bounded FFprobe JSON inspection, audio/duration validation, and typed stream persistence.
+- Implemented mono 22.05 kHz PCM WAV generation with safe FFmpeg arguments, temporary output, atomic finalization, cleanup, ProcessingRun auditing, and idempotent repeat calls.
+- Changed media normalization capability reporting from `not_implemented` to dependency-backed `available`/`unavailable`.
+- Extended the Next.js workflow to explicitly process uploaded media and display container, duration, audio codec/channels/sample rate, and video dimensions.
+- Moved the local/test API default to port 18080 because Windows Hyper-V/WSL currently reserves the range containing port 8000.
+- Updated root, backend, architecture, pipeline, data-model, roadmap, research, evaluation, task, handoff, and engineering-log documentation.
 
 ## Checks run
 
-- Backend: Ruff passed; strict mypy passed across 24 source files; pytest passed 24 tests; `alembic check` found no drift.
-- Frontend: ESLint passed; TypeScript passed; Vitest passed four tests; the Next.js production build passed.
-- Browser: Playwright passed two live Chromium tests against migrated FastAPI and Next.js servers, covering accepted and rejected uploads.
-- Documentation links and staged diff are checked before delivery.
+- Backend: Ruff passed; strict mypy passed across 25 source files; pytest passed 32 tests.
+- Database: Alembic upgraded through `20260716_0003`; `alembic check` found no drift.
+- Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
+- Browser: Playwright passed three live Chromium tests. Native Windows FFprobe 8.0 and FFmpeg 8.0 inspected and normalized real generated WAV and MP4 fixtures.
 
 ## Remaining work
 
-The next milestone is FFprobe inspection and FFmpeg normalized-WAV generation. Basic Pitch, MIDI, symbolic reconstruction, MusicXML, rendering, correction tools, evaluation benchmarks, and Synthesia work remain intentionally deferred in that order.
+The next milestone is Basic Pitch compatibility, typed raw note-event transcription, and raw MIDI generation. Quantization, hands/staves/voices, MusicXML, rendering, correction tools, evaluation benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks
 
-- FastAPI/Starlette's current TestClient emits one upstream warning about a future `httpx2` migration.
-- npm reports two moderate advisories; `npm audit fix --force` was not run because it requests breaking upgrades.
-- FFmpeg is available in WSL but may not be on the native Windows backend `PATH`; configure or install it in the runtime used for the next milestone.
-- Basic Pitch 0.4.0 and its older transitive ML stack still require an isolated compatibility test before integration.
+- Media processing is synchronous; long sources may eventually justify a local worker boundary.
+- The normalized format is intentionally fixed at mono 22.05 kHz PCM16 and should be re-evaluated only with measured transcription evidence.
+- FastAPI/Starlette's current TestClient emits one upstream warning about future `httpx2` migration.
+- npm reports two moderate advisories; no breaking forced audit fix was applied.
+- Basic Pitch 0.4.0 and its older transitive ML stack still require an isolated Windows Python 3.11 compatibility test.
+- Windows excluded port ranges can change after Hyper-V/WSL restarts. Port 18080 is configurable for Playwright through `PIANOVA_E2E_API_PORT`.
 - No project license has been selected.
 
 ## Delivery state
 
-The reviewed milestone implementation is verified on `main`; two earlier WIP commits preserve its scaffold and backend checkpoints.
+The media milestone is implemented and fully verified on `main`.

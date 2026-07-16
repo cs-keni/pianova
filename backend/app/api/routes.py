@@ -10,13 +10,16 @@ from app.core.dependencies import DependencyStatus
 from app.core.errors import PianovaError
 from app.models.entities import Project
 from app.schemas import (
+    ArtifactResponse,
     ConfigResponse,
     DependencyResponse,
     HealthResponse,
+    MediaProcessResponse,
     ProjectCreate,
     ProjectResponse,
     UploadResponse,
 )
+from app.services.media import MediaService
 from app.services.projects import ProjectService
 from app.services.storage import SUPPORTED_EXTENSIONS, UploadService
 
@@ -100,4 +103,28 @@ def upload_media(
         artifact_id=artifact.id,
         stored_filename=stored_filename,
         detected_type=detected_type,
+    )
+
+
+@router.post("/projects/{project_id}/process-media", response_model=MediaProcessResponse)
+def process_media(
+    project_id: str,
+    request: Request,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> MediaProcessResponse:
+    project = session.get(Project, project_id)
+    if project is None:
+        raise PianovaError("project_not_found", "The requested project does not exist.", 404)
+    dependencies: dict[str, DependencyStatus] = request.app.state.dependencies
+    result = MediaService(
+        session,
+        settings,
+        ffmpeg=dependencies["ffmpeg"],
+        ffprobe=dependencies["ffprobe"],
+    ).process(project)
+    return MediaProcessResponse(
+        project=ProjectResponse.model_validate(project),
+        normalized_artifact=ArtifactResponse.model_validate(result.artifact),
+        reused=result.reused,
     )

@@ -1,6 +1,6 @@
 # Data Model Reference
 
-Alembic revision `20260714_0001` creates four tables; revision `20260714_0002` adds the per-project artifact-kind invariant. SQLAlchemy persistence models are separate from Pydantic API schemas.
+Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams. SQLAlchemy persistence models are separate from Pydantic API schemas.
 
 ## Project
 
@@ -12,13 +12,20 @@ Alembic revision `20260714_0001` creates four tables; revision `20260714_0002` a
 | `original_filename` | string(255), nullable | Display metadata only, never a storage path |
 | `media_type` | string(100), nullable | Signature-detected source media type |
 | `source_size_bytes` | integer, nullable | Stored source size |
+| `duration_seconds` | float, nullable | FFprobe container/stream duration |
+| `container_format` | string(200), nullable | FFprobe format name |
+| `source_bit_rate` | integer, nullable | FFprobe aggregate bit rate |
 | `created_at`, `updated_at` | timestamps | UTC lifecycle timestamps |
 
 ## Artifact
 
 Artifacts belong to a Project through `project_id`. `relative_path` is limited to 500 characters and resolves beneath the configured workspace. `size_bytes` and `created_at` record storage metadata. A database uniqueness constraint permits only one artifact of each kind per project; the current API therefore accepts only one source upload.
 
-Kinds: `source`, `normalized_audio`, `note_events`, `raw_midi`, `clean_midi`, `musicxml`, and `pdf`. Only `source` is produced today.
+Kinds: `source`, `normalized_audio`, `note_events`, `raw_midi`, `clean_midi`, `musicxml`, and `pdf`. Source and normalized-audio artifacts are produced today.
+
+## MediaStream
+
+Each FFprobe stream is stored with a unique `(project_id, stream_index)` pair. Common fields are stream type, codec names, duration, and bit rate. Audio fields include sample rate, channel count, and channel layout. Video fields include width, height, and frame rate. Unknown stream types remain recorded as `other` so inspection does not discard evidence needed by later video work.
 
 ## NoteEvent
 
@@ -34,7 +41,7 @@ This split lets Pianova simplify rubato into readable rhythm without destroying 
 
 ## ProcessingRun
 
-Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Processing execution is not implemented yet; the table establishes its audit boundary.
+Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media normalization now creates running and terminal audit rows; later stages will use the same boundary.
 
 ## API schemas
 
@@ -44,6 +51,7 @@ Each row records a `stage`, status, optional error message, and nullable start/c
 - `DependencyResponse`: executable name, availability, resolved path, version line, and error.
 - `ConfigResponse`: upload limit, extensions, and workspace location.
 - `UploadResponse`: updated project, artifact ID, generated filename, and detected type.
+- `MediaProcessResponse`: inspected project and streams, normalized Artifact, and whether an existing result was reused.
 
 API failures use `{ "error": { "code", "message", "details" } }`. Validation failures use the same envelope.
 

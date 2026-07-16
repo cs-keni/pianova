@@ -16,6 +16,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatDuration(seconds: number): string {
+  const wholeSeconds = Math.round(seconds);
+  const minutes = Math.floor(wholeSeconds / 60);
+  const remainder = wholeSeconds % 60;
+  return minutes > 0 ? `${minutes}:${remainder.toString().padStart(2, "0")}` : `${remainder}s`;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something unexpected went wrong.";
 }
@@ -30,6 +37,7 @@ export default function Home() {
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   async function loadStatus() {
     try {
@@ -92,6 +100,27 @@ export default function Home() {
     }
   }
 
+  async function processMedia() {
+    if (!project || processing) return;
+    setProcessing(true);
+    setFormError(null);
+    try {
+      const response = await api.processMedia(project.id);
+      setProject(response.project);
+    } catch (error) {
+      setFormError(errorMessage(error));
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  const mediaCapability = health?.capabilities.find(
+    (capability) => capability.key === "media_normalization",
+  );
+  const audioStream = project?.media_streams.find((stream) => stream.stream_type === "audio");
+  const videoStream = project?.media_streams.find((stream) => stream.stream_type === "video");
+  const mediaReady = project?.duration_seconds != null;
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
@@ -135,8 +164,18 @@ export default function Home() {
         <section className={styles.workflow} aria-labelledby="workflow-title">
           <div className={styles.sectionHeading}>
             <div>
-              <p className={styles.step}>Step {project ? "2" : "1"} of 2</p>
-              <h3 id="workflow-title">{project ? "Add the performance" : "Create a project"}</h3>
+              <p className={styles.step}>
+                Step {mediaReady ? "3" : project ? "2" : "1"} of 3
+              </p>
+              <h3 id="workflow-title">
+                {mediaReady
+                  ? "Media ready"
+                  : project?.status === "uploaded"
+                    ? "Inspect and prepare audio"
+                    : project
+                      ? "Add the performance"
+                      : "Create a project"}
+              </h3>
             </div>
             {project && <span className={styles.projectId}>Project ready</span>}
           </div>
@@ -157,16 +196,72 @@ export default function Home() {
                 {creating ? "Creating…" : "Create local project"}
               </button>
             </form>
+          ) : mediaReady ? (
+            <div className={styles.mediaResult} role="status">
+              <div className={styles.success}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h4>Media inspected and audio normalized</h4>
+                  <p>
+                    {project.original_filename} · {formatDuration(project.duration_seconds ?? 0)} ·{" "}
+                    {formatBytes(project.source_size_bytes ?? 0)}
+                  </p>
+                  <p>The normalized WAV is ready. Transcription has not started.</p>
+                </div>
+              </div>
+              <dl className={styles.metadata}>
+                <div>
+                  <dt>Container</dt>
+                  <dd>{project.container_format ?? "Unknown"}</dd>
+                </div>
+                <div>
+                  <dt>Audio</dt>
+                  <dd>
+                    {audioStream?.codec_name ?? "Unknown codec"}
+                    {audioStream?.channels ? ` · ${audioStream.channels} ch` : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Sample rate</dt>
+                  <dd>
+                    {audioStream?.sample_rate
+                      ? `${(audioStream.sample_rate / 1000).toFixed(1)} kHz`
+                      : "Unknown"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Video</dt>
+                  <dd>
+                    {videoStream
+                      ? `${videoStream.codec_name ?? "Unknown"} · ${videoStream.width ?? "?"}×${videoStream.height ?? "?"}`
+                      : "No video stream"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
           ) : project.status === "uploaded" ? (
-            <div className={styles.success} role="status">
-              <span aria-hidden="true">✓</span>
-              <div>
-                <h4>Source file secured</h4>
+            <div className={styles.processStep}>
+              <div className={styles.sourceSummary}>
+                <strong>Source file secured</strong>
                 <p>
                   {project.original_filename} · {formatBytes(project.source_size_bytes ?? 0)}
                 </p>
-                <p>Transcription is intentionally not started yet.</p>
               </div>
+              <p className={styles.help}>
+                FFprobe will verify the media and FFmpeg will create a private normalized WAV for
+                transcription. Transcription has not started.
+              </p>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={processing || mediaCapability?.state !== "available"}
+                onClick={processMedia}
+              >
+                {processing ? "Inspecting and normalizing…" : "Inspect and prepare audio"}
+              </button>
+              {mediaCapability?.state === "unavailable" && (
+                <p className={styles.formError}>FFmpeg and FFprobe are required for this step.</p>
+              )}
             </div>
           ) : (
             <form onSubmit={uploadFile} className={styles.form}>

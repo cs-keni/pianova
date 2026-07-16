@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const frontendDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const backendDirectory = resolve(frontendDirectory, "../backend");
+const apiPort = process.env.PIANOVA_E2E_API_PORT ?? "18080";
 const python =
   process.platform === "win32"
     ? resolve(frontendDirectory, "../.venv/Scripts/python.exe")
@@ -20,7 +21,7 @@ if (migration.status !== 0) {
 
 const backend = spawn(
   python,
-  ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+  ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", apiPort],
   { cwd: backendDirectory, stdio: "inherit" },
 );
 

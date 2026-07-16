@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     dependency_probe_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
+    media_inspection_timeout_seconds: float = Field(default=30.0, gt=0, le=300)
+    media_normalization_timeout_seconds: float = Field(default=300.0, gt=0, le=3600)
+    normalized_sample_rate: int = Field(default=22050, ge=8000, le=192000)
+    normalized_channels: int = Field(default=1, ge=1, le=2)
 
     @field_validator("workspace_dir", mode="before")
     @classmethod
