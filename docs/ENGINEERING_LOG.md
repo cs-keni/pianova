@@ -125,3 +125,19 @@
 - Ten migrated-SQLite tests prove all allowed states, all other presence combinations, numeric
   bounds, and the revision bound. Alembic upgrades through `20260718_0007` with no model drift;
   the backend baseline is 103 tests.
+
+## 2026-07-18 — Voice-separation backend boundary
+
+- Added the independent `voice_separation` service, endpoint, available capability, typed preview,
+  per-staff voice counts, diagnostics, provenance, and fingerprinted reuse over the current
+  successful interpretation run. Stored reuse is rejected unless ownership, JSON, diagnostics,
+  tri-state fields, staff/reason rules, voice 1/2 bounds, scores, and overlap invariants all hold.
+- Genuine re-interpretation invalidates voice state; genuine re-quantization invalidates both
+  interpretation and voice state. Downstream revisions increment as SQL expressions inside the
+  owning transaction instead of from stale Python reads.
+- Four actual-service interleaving tests cover both commit orders for voice versus interpretation
+  and voice versus quantization. In every order the first valid commit wins, the stale CAS fails,
+  the prior complete result remains atomic, and no cascade revision increment is lost.
+- Voice ambiguity remains a successful output with `unresolved_staff`,
+  `voice_capacity_exceeded`, `crossing`, or `close_alternative`; there is no complexity error or
+  weighted dynamic-programming path. `voice_confidence` remains an uncalibrated decision score.

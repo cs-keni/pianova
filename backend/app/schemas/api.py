@@ -13,6 +13,7 @@ from app.models.entities import (
     SettingSource,
     Staff,
     TempoSource,
+    VoiceAmbiguityReason,
 )
 
 
@@ -83,6 +84,8 @@ class ProjectResponse(BaseModel):
     quantization_revision: int
     current_interpretation_run_id: int | None
     interpretation_revision: int
+    current_voice_run_id: int | None
+    voice_revision: int
     media_streams: list[MediaStreamResponse]
     created_at: datetime
     updated_at: datetime
@@ -245,4 +248,53 @@ class InterpretationResponse(BaseModel):
     preview_notes: list[InterpretedNoteResponse]
     diagnostics: InterpretationDiagnosticsResponse
     provenance: InterpretationProvenanceResponse
+    reused: bool
+
+
+class VoicedNoteResponse(BaseModel):
+    id: int
+    pitch: int
+    symbolic_start_beats: float
+    symbolic_duration_beats: float
+    chord_group: int
+    hand: Hand
+    staff: Staff
+    voice: int | None = Field(default=None, ge=1)
+    voice_confidence: float = Field(ge=0, le=1)
+    voice_ambiguity_reason: VoiceAmbiguityReason | None
+
+
+class VoiceDiagnosticsResponse(BaseModel):
+    treble_note_count: int
+    bass_note_count: int
+    chord_node_count: int
+    conflict_component_count: int
+    two_voice_component_count: int
+    crossing_component_count: int
+    capacity_exceeded_count: int
+    unresolved_staff_count: int
+    resolved_count: int
+    unknown_count: int
+    treble_voice_1_count: int
+    treble_voice_2_count: int
+    bass_voice_1_count: int
+    bass_voice_2_count: int
+
+
+class VoiceProvenanceResponse(BaseModel):
+    run_id: int
+    processor_name: str
+    processor_version: str
+    runtime: str
+    interpretation_run_id: int
+    input_fingerprint: str
+    configuration: dict[str, object]
+
+
+class VoiceSeparationResponse(BaseModel):
+    project: ProjectResponse
+    note_count: int
+    preview_notes: list[VoicedNoteResponse]
+    diagnostics: VoiceDiagnosticsResponse
+    provenance: VoiceProvenanceResponse
     reused: bool

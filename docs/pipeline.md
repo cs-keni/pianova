@@ -1,6 +1,6 @@
 # Processing Pipeline
 
-The current product implements secure ingestion, typed media preparation, raw Basic Pitch transcription, conservative readable timing, and independent hand/staff interpretation. Every later score stage remains a separate typed boundary and must fail explicitly until implemented.
+The current backend implements secure ingestion, typed media preparation, raw Basic Pitch transcription, conservative readable timing, independent hand/staff interpretation, and staff-scoped notation voices. Every later score stage remains a separate typed boundary and must fail explicitly until implemented.
 
 | Stage | Input | Output/artifact | Main failure modes | Status |
 |---|---|---|---|---|
@@ -13,7 +13,7 @@ The current product implements secure ingestion, typed media preparation, raw Ba
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
-| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, overlap capacity, concurrent update | Pure engine implemented; service pending |
+| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Backend implemented; frontend pending |
 | Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Ambiguous key or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
@@ -79,7 +79,7 @@ the current interpretation run, and an optimistic revision. Re-quantization inva
 only when timing is genuinely recomputed. `InterpretationService` uses the same `StageRunner`
 transaction shell while retaining all interpretation-specific validation and persistence policy.
 
-## Voice engine contract (service pending)
+## Implemented voice-separation contract
 
 `app.symbolic.voices.separate_voices` consumes immutable notes with exact symbolic onset/duration
 and independent staff evidence. Staff-unknown notes succeed as `unresolved_staff` unknowns.
@@ -89,12 +89,23 @@ two-colored, with voice 1 assigned to the higher-mean-pitch stream. A proven thi
 stream is removed by latest-onset, highest-pitch, then ID priority and reported as
 `voice_capacity_exceeded`; remaining notes are still colored.
 
-Crossing and sub-threshold separation remain successful typed unknowns. `voice_confidence` is a
-normalized stream-separation decision score, not a calibrated probability. Persistence, cascade
-invalidation, reuse, and `POST /separate-voices` remain pending T3-T4 and are not advertised as an
-available capability yet. Revision `20260718_0007` supplies the checked project/note storage
-contract the service will own: nullable current-run pointer, non-negative optimistic revision,
-`voice >= 1`, bounded score, typed reason, and exactly three valid field combinations.
+Crossing and sub-threshold separation remain successful typed unknowns. `voice_confidence` is an
+uncalibrated normalized stream-separation decision score, not a probability. Revision
+`20260718_0007` supplies nullable current-run ownership, a non-negative optimistic revision,
+`voice >= 1`, a bounded score, typed reasons, and exactly three valid field combinations.
+
+`POST /api/projects/{project_id}/separate-voices` requires current, complete interpretation
+evidence. The service fingerprints the owning interpretation run/revision, ordered note evidence,
+settings, runtime, and algorithm version. Reuse validates run ownership, JSON/provenance,
+diagnostics, tri-state fields, staff/reason rules, the version-1 voice cap, and the per-staff
+overlap invariant. Success returns a bounded note preview, per-staff voice 1/2 counts, structural
+diagnostics, provenance, ownership/revision, and reuse state.
+
+Genuine re-interpretation clears voices and advances `voice_revision`; genuine re-quantization
+clears both interpretation and voice state and advances both downstream revisions. The cascade
+increments are SQL-relative within the upstream transaction. Voice, interpretation, and
+quantization compare-and-swap predicates make either interleaving deterministic: the first valid
+commit wins and the stale stage returns a conflict without losing an increment.
 
 ## Generated artifacts
 
@@ -128,6 +139,8 @@ All artifact kinds are reserved in the schema: source, normalized audio, note-ev
 - `PIANOVA_INTERPRETATION_*_CENTER_PITCH`, scoring weights, span/register thresholds, and confidence margins: deterministic hand/staff baseline.
 - `PIANOVA_INTERPRETATION_MAXIMUM_TRANSITION_EVALUATIONS`: hard dynamic-programming work bound.
 - `PIANOVA_INTERPRETATION_PREVIEW_NOTE_LIMIT`, `PIANOVA_INTERPRETATION_ALGORITHM_VERSION`: response bound and reuse identity.
+- `PIANOVA_VOICE_CLOSE_SEPARATION_SEMITONES`, `PIANOVA_VOICE_HIGH_SEPARATION_SEMITONES`: typed-unknown and high-confidence separation thresholds.
+- `PIANOVA_VOICE_PREVIEW_NOTE_LIMIT`, `PIANOVA_VOICE_ALGORITHM_VERSION`: response bound and reuse identity.
 - `PIANOVA_DATABASE_URL`: SQLite or another SQLAlchemy URL.
 
 Related: [architecture](architecture.md), [data model](data-model.md), and the root [run guide](../README.md#run-pianova).

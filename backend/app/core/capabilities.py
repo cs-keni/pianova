@@ -58,6 +58,12 @@ def build_capabilities(
             reason="Independent hand and notation-staff assignment with uncertainty is ready.",
         ),
         Capability(
+            key="voice_separation",
+            label="Notation voice separation",
+            state=CapabilityState.AVAILABLE,
+            reason="Staff-scoped forced notation voices with explicit uncertainty are ready.",
+        ),
+        Capability(
             key="musicxml",
             label="MusicXML generation",
             state=CapabilityState.NOT_IMPLEMENTED,

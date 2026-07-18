@@ -62,6 +62,19 @@ def create_quantized_note_project(
     return project
 
 
+def create_voiced_project(
+    client: TestClient,
+    *,
+    title: str,
+) -> tuple[dict[str, object], dict[str, object]]:
+    project = create_quantized_note_project(client, title=title)
+    interpreted = client.post(f"/api/projects/{project['id']}/interpret")
+    assert interpreted.status_code == 200
+    voiced = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert voiced.status_code == 200
+    return project, voiced.json()
+
+
 def create_normalized_project(
     client: TestClient,
     wav_bytes: bytes,
@@ -1014,3 +1027,278 @@ def test_requantization_commit_failure_preserves_interpretation(
         assert all(note.staff is not Staff.UNKNOWN for note in notes)
         assert all(note.hand_confidence is not None for note in notes)
         assert all(note.staff_confidence is not None for note in notes)
+
+
+def test_voice_commit_failure_preserves_previous_result(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_voiced_project(client, title="Voice rollback")
+    original_commit = Session.commit
+    commit_count = 0
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    def fail_success_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated voice commit failure")
+        original_commit(session)
+
+    monkeypatch.setattr(Session, "commit", fail_success_commit)
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "voice_separation_failed"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_voice_run_id == first_body["provenance"]["run_id"]
+        assert stored.voice_revision == first_body["project"]["voice_revision"]
+        notes = tuple(
+            session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        )
+        assert all(note.voice is not None for note in notes)
+        assert all(note.voice_confidence is not None for note in notes)
+        latest = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "voice_separation",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest is not None
+        assert latest.status is ProcessingStatus.FAILED
+
+
+def test_voice_conflict_rolls_back_new_assignments(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_voiced_project(client, title="Voice conflict")
+    from app.services import voices as voices_module
+
+    original_separate = voices_module.separate_voices
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    def concurrent_voice(*args: object, **kwargs: object) -> object:
+        result = original_separate(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            stored.voice_revision += 1
+            other_session.commit()
+        return result
+
+    monkeypatch.setattr(voices_module, "separate_voices", concurrent_voice)
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "voice_separation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_voice_run_id == first_body["provenance"]["run_id"]
+        assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
+        latest = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "voice_separation",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest is not None
+        assert latest.status is ProcessingStatus.FAILED
+
+
+def test_voice_failure_audit_commit_failure_is_logged(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = create_quantized_note_project(client, title="Voice audit failure")
+    interpreted = client.post(f"/api/projects/{project['id']}/interpret")
+    assert interpreted.status_code == 200
+    from app.services import voices as voices_module
+
+    original_commit = Session.commit
+    commit_count = 0
+    logged: list[str] = []
+
+    def fail_engine(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("simulated voice engine failure")
+
+    def fail_audit_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated audit commit failure")
+        original_commit(session)
+
+    def capture_exception(message: str, *args: object, **_kwargs: object) -> None:
+        logged.append(message % args)
+
+    monkeypatch.setattr(voices_module, "separate_voices", fail_engine)
+    monkeypatch.setattr(voices_module.logger, "exception", capture_exception)
+    monkeypatch.setattr(Session, "commit", fail_audit_commit)
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "voice_separation_failed"
+    assert any("Could not persist failed voice_separation run" in item for item in logged)
+    with client.app.state.session_factory() as session:
+        run = session.scalar(
+            select(ProcessingRun).where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "voice_separation",
+            )
+        )
+        assert run is not None
+        assert run.status is ProcessingStatus.RUNNING
+
+
+def test_reinterpretation_commit_first_makes_voice_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_voiced_project(client, title="Interpretation wins")
+    from app.services import voices as voices_module
+    from app.services.interpretation import InterpretationService
+
+    original_separate = voices_module.separate_voices
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+
+    def interpretation_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_separate(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            InterpretationService(other_session, client.app.state.settings).interpret(stored)
+        return result
+
+    monkeypatch.setattr(voices_module, "separate_voices", interpretation_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "voice_separation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.interpretation_revision == (
+            first_body["project"]["interpretation_revision"] + 1
+        )
+        assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
+        assert stored.current_voice_run_id is None
+
+
+def test_voice_commit_first_makes_reinterpretation_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_voiced_project(client, title="Voice beats interpretation")
+    from app.services import interpretation as interpretation_module
+    from app.services.voices import VoiceService
+
+    original_interpret = interpretation_module.interpret_notes
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    def voice_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_interpret(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            VoiceService(other_session, client.app.state.settings).separate(stored)
+        return result
+
+    monkeypatch.setattr(interpretation_module, "interpret_notes", voice_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "interpretation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.interpretation_revision == first_body["project"]["interpretation_revision"]
+        assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
+        assert stored.current_voice_run_id != first_body["provenance"]["run_id"]
+
+
+def test_requantization_commit_first_makes_voice_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_voiced_project(client, title="Quantization wins")
+    from app.schemas.api import QuantizationRequest
+    from app.services import voices as voices_module
+    from app.services.quantization import QuantizationService
+
+    original_separate = voices_module.separate_voices
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    def quantization_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_separate(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            QuantizationService(other_session, client.app.state.settings).quantize(
+                stored,
+                QuantizationRequest(tempo_bpm=90),
+            )
+        return result
+
+    monkeypatch.setattr(voices_module, "separate_voices", quantization_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "voice_separation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.quantization_revision == first_body["project"]["quantization_revision"] + 1
+        assert stored.interpretation_revision == (
+            first_body["project"]["interpretation_revision"] + 1
+        )
+        assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
+        assert stored.current_interpretation_run_id is None
+        assert stored.current_voice_run_id is None
+
+
+def test_voice_commit_first_makes_requantization_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_voiced_project(client, title="Voice beats quantization")
+    from app.services import quantization as quantization_module
+    from app.services.voices import VoiceService
+
+    original_quantize = quantization_module.quantize_timing
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    def voice_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_quantize(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            VoiceService(other_session, client.app.state.settings).separate(stored)
+        return result
+
+    monkeypatch.setattr(quantization_module, "quantize_timing", voice_commits_first)
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 90},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "quantization_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.quantization_revision == first_body["project"]["quantization_revision"]
+        assert stored.interpretation_revision == first_body["project"]["interpretation_revision"]
+        assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
+        assert stored.current_voice_run_id != first_body["provenance"]["run_id"]

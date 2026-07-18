@@ -9,12 +9,15 @@ from sqlalchemy import func, select
 from app.models.entities import (
     Artifact,
     ArtifactKind,
+    AssignmentAmbiguityReason,
     Hand,
     NoteEvent,
     ProcessingRun,
     ProcessingStatus,
     Project,
     Staff,
+    VoiceAmbiguityReason,
+    utc_now,
 )
 
 
@@ -49,6 +52,63 @@ def create_note_project(
     return project
 
 
+def create_voice_ready_project(client: TestClient) -> dict[str, object]:
+    project = client.post("/api/projects", json={"title": "Voice ready"}).json()
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        run = ProcessingRun(
+            project_id=stored.id,
+            stage="interpretation",
+            status=ProcessingStatus.SUCCEEDED,
+            configuration_json="{}",
+            started_at=utc_now(),
+            completed_at=utc_now(),
+        )
+        session.add(run)
+        session.flush()
+        stored.current_interpretation_run_id = run.id
+        stored.interpretation_revision = 1
+        session.add_all(
+            [
+                _interpreted_note(stored.id, 72, 0, 3, Staff.TREBLE),
+                _interpreted_note(stored.id, 60, 1, 1, Staff.TREBLE),
+                _interpreted_note(stored.id, 48, 0, 1, Staff.BASS),
+                _interpreted_note(stored.id, 64, 2, 1, Staff.UNKNOWN),
+            ]
+        )
+        session.commit()
+    return project
+
+
+def _interpreted_note(
+    project_id: str,
+    pitch: int,
+    start: float,
+    duration: float,
+    staff: Staff,
+) -> NoteEvent:
+    unknown_staff = staff is Staff.UNKNOWN
+    return NoteEvent(
+        project_id=project_id,
+        pitch=pitch,
+        velocity=90,
+        raw_start_seconds=start / 2,
+        raw_end_seconds=(start + duration) / 2,
+        confidence=0.9,
+        symbolic_start_beats=start,
+        symbolic_duration_beats=duration,
+        chord_group=int(start) + 1,
+        hand=Hand.RIGHT,
+        staff=staff,
+        hand_confidence=0.9,
+        staff_confidence=0.2 if unknown_staff else 0.9,
+        staff_ambiguity_reason=(
+            AssignmentAmbiguityReason.CLOSE_ALTERNATIVE if unknown_staff else None
+        ),
+    )
+
+
 def test_health_reports_media_capability_and_unfinished_stages(client: TestClient) -> None:
     response = client.get("/api/health")
 
@@ -65,6 +125,7 @@ def test_health_reports_media_capability_and_unfinished_stages(client: TestClien
     assert capabilities["media_normalization"] == "available"
     assert capabilities["transcription"] == "available"
     assert capabilities["interpretation"] == "available"
+    assert capabilities["voice_separation"] == "available"
     assert capabilities["musicxml"] == "not_implemented"
     assert capabilities["score_rendering"] == "not_implemented"
 
@@ -726,6 +787,9 @@ def test_requantization_invalidates_current_interpretation(client: TestClient) -
     )
     interpreted = client.post(f"/api/projects/{project['id']}/interpret")
     assert interpreted.status_code == 200
+    voiced = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert voiced.status_code == 200
+    previous_voice_revision = voiced.json()["project"]["voice_revision"]
 
     requantized = client.post(
         f"/api/projects/{project['id']}/quantize",
@@ -736,6 +800,8 @@ def test_requantization_invalidates_current_interpretation(client: TestClient) -
     assert requantized.json()["reused"] is False
     assert requantized.json()["project"]["current_interpretation_run_id"] is None
     assert requantized.json()["project"]["interpretation_revision"] == 3
+    assert requantized.json()["project"]["current_voice_run_id"] is None
+    assert requantized.json()["project"]["voice_revision"] == previous_voice_revision + 1
     with client.app.state.session_factory() as session:
         notes = tuple(
             session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
@@ -746,3 +812,202 @@ def test_requantization_invalidates_current_interpretation(client: TestClient) -
         assert all(note.staff_confidence is None for note in notes)
         assert all(note.hand_ambiguity_reason is None for note in notes)
         assert all(note.staff_ambiguity_reason is None for note in notes)
+        assert all(note.voice is None for note in notes)
+        assert all(note.voice_confidence is None for note in notes)
+        assert all(note.voice_ambiguity_reason is None for note in notes)
+
+
+def test_voice_separation_requires_current_complete_interpretation(client: TestClient) -> None:
+    project = client.post("/api/projects", json={"title": "No interpretation"}).json()
+
+    missing = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert missing.status_code == 409
+    assert missing.json()["error"]["code"] == "interpretation_required"
+
+    invalid_owner = create_voice_ready_project(client)
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, invalid_owner["id"])
+        assert stored is not None
+        stored.current_interpretation_run_id = 999_999
+        session.commit()
+
+    invalid = client.post(f"/api/projects/{invalid_owner['id']}/separate-voices")
+
+    assert invalid.status_code == 409
+    assert invalid.json()["error"]["code"] == "interpretation_required"
+
+    ready = create_voice_ready_project(client)
+    with client.app.state.session_factory() as session:
+        note = session.scalar(select(NoteEvent).where(NoteEvent.project_id == ready["id"]))
+        assert note is not None
+        note.staff_confidence = None
+        session.commit()
+
+    incomplete = client.post(f"/api/projects/{ready['id']}/separate-voices")
+
+    assert incomplete.status_code == 409
+    assert incomplete.json()["error"]["code"] == "incomplete_interpretation"
+
+
+def test_voice_separation_persists_counts_provenance_and_reuses(client: TestClient) -> None:
+    project = create_voice_ready_project(client)
+
+    first = client.post(f"/api/projects/{project['id']}/separate-voices")
+    second = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["reused"] is False
+    assert body["note_count"] == 4
+    assert body["project"]["current_voice_run_id"] == body["provenance"]["run_id"]
+    assert body["project"]["voice_revision"] == 1
+    assert body["provenance"]["processor_name"] == "pianova_notation_voice_separation"
+    assert body["diagnostics"]["resolved_count"] == 3
+    assert body["diagnostics"]["unknown_count"] == 1
+    assert body["diagnostics"]["treble_voice_1_count"] == 1
+    assert body["diagnostics"]["treble_voice_2_count"] == 1
+    assert body["diagnostics"]["bass_voice_1_count"] == 1
+    assert body["diagnostics"]["unresolved_staff_count"] == 1
+    unknown = next(note for note in body["preview_notes"] if note["staff"] == "unknown")
+    assert unknown["voice"] is None
+    assert unknown["voice_ambiguity_reason"] == "unresolved_staff"
+    assert second.status_code == 200
+    assert second.json()["reused"] is True
+    assert second.json()["provenance"]["run_id"] == body["provenance"]["run_id"]
+
+    with client.app.state.session_factory() as session:
+        notes = tuple(
+            session.scalars(
+                select(NoteEvent)
+                .where(NoteEvent.project_id == project["id"])
+                .order_by(NoteEvent.pitch)
+            )
+        )
+        assert sum(note.voice == 1 for note in notes) == 2
+        assert sum(note.voice == 2 for note in notes) == 1
+        assert (
+            sum(
+                note.voice_ambiguity_reason is VoiceAmbiguityReason.UNRESOLVED_STAFF
+                for note in notes
+            )
+            == 1
+        )
+        assert (
+            session.scalar(
+                select(func.count(ProcessingRun.id)).where(
+                    ProcessingRun.project_id == project["id"],
+                    ProcessingRun.stage == "voice_separation",
+                )
+            )
+            == 1
+        )
+
+
+def test_voice_separation_declines_malformed_reuse_and_recomputes(client: TestClient) -> None:
+    project = create_voice_ready_project(client)
+    first = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert first.status_code == 200
+
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        run = session.get(ProcessingRun, stored.current_voice_run_id)
+        assert run is not None
+        run.configuration_json = "not-json"
+        session.commit()
+
+    repaired = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert repaired.status_code == 200
+    assert repaired.json()["reused"] is False
+    assert repaired.json()["project"]["voice_revision"] == 2
+
+    with client.app.state.session_factory() as session:
+        treble_notes = tuple(
+            session.scalars(
+                select(NoteEvent).where(
+                    NoteEvent.project_id == project["id"],
+                    NoteEvent.staff == Staff.TREBLE,
+                )
+            )
+        )
+        assert len(treble_notes) == 2
+        for note in treble_notes:
+            note.voice = 1
+            note.voice_confidence = 1
+            note.voice_ambiguity_reason = None
+        session.commit()
+
+    repaired_invariant = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert repaired_invariant.status_code == 200
+    assert repaired_invariant.json()["reused"] is False
+    assert repaired_invariant.json()["project"]["voice_revision"] == 3
+
+    client.app.state.settings.voice_close_separation_semitones = 1.5
+    recomputed_settings = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert recomputed_settings.status_code == 200
+    assert recomputed_settings.json()["reused"] is False
+    assert recomputed_settings.json()["project"]["voice_revision"] == 4
+
+
+def test_interpretation_reuse_preserves_current_voices(client: TestClient) -> None:
+    project = create_note_project(
+        client,
+        [(48, 0.0, 0.4), (72, 0.0, 0.4), (50, 0.5, 0.9), (74, 0.5, 0.9)],
+        title="Preserve voices",
+    )
+    quantized = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    assert quantized.status_code == 200
+    interpreted = client.post(f"/api/projects/{project['id']}/interpret")
+    assert interpreted.status_code == 200
+    voiced = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert voiced.status_code == 200
+
+    reused_interpretation = client.post(f"/api/projects/{project['id']}/interpret")
+    reused_quantization = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+
+    assert reused_interpretation.status_code == 200
+    assert reused_interpretation.json()["reused"] is True
+    assert (
+        reused_interpretation.json()["project"]["current_voice_run_id"]
+        == voiced.json()["provenance"]["run_id"]
+    )
+    assert reused_quantization.status_code == 200
+    assert reused_quantization.json()["reused"] is True
+    assert (
+        reused_quantization.json()["project"]["current_voice_run_id"]
+        == voiced.json()["provenance"]["run_id"]
+    )
+
+
+def test_reinterpretation_invalidates_current_voices(client: TestClient) -> None:
+    project = create_note_project(
+        client,
+        [(48, 0.0, 0.4), (72, 0.0, 0.4), (50, 0.5, 0.9), (74, 0.5, 0.9)],
+        title="Reinterpret voices",
+    )
+    client.post(f"/api/projects/{project['id']}/quantize", json={"tempo_bpm": 120})
+    client.post(f"/api/projects/{project['id']}/interpret")
+    voiced = client.post(f"/api/projects/{project['id']}/separate-voices")
+    assert voiced.status_code == 200
+    previous_revision = voiced.json()["project"]["voice_revision"]
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+
+    reinterpreted = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert reinterpreted.status_code == 200
+    assert reinterpreted.json()["reused"] is False
+    assert reinterpreted.json()["project"]["current_voice_run_id"] is None
+    assert reinterpreted.json()["project"]["voice_revision"] == previous_revision + 1
+    with client.app.state.session_factory() as session:
+        notes = session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        assert all(note.voice is None for note in notes)
+        assert all(note.voice_confidence is None for note in notes)
+        assert all(note.voice_ambiguity_reason is None for note in notes)

@@ -20,6 +20,10 @@ from app.schemas.api import (
     TranscriptionProvenanceResponse,
     TranscriptionResponse,
     UploadResponse,
+    VoiceDiagnosticsResponse,
+    VoicedNoteResponse,
+    VoiceProvenanceResponse,
+    VoiceSeparationResponse,
 )
 
 __all__ = [
@@ -44,4 +48,8 @@ __all__ = [
     "TranscriptionProvenanceResponse",
     "TranscriptionResponse",
     "UploadResponse",
+    "VoiceDiagnosticsResponse",
+    "VoiceProvenanceResponse",
+    "VoiceSeparationResponse",
+    "VoicedNoteResponse",
 ]

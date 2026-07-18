@@ -9,7 +9,13 @@ from app.core.capabilities import build_capabilities
 from app.core.config import Settings
 from app.core.dependencies import DependencyStatus
 from app.core.errors import PianovaError
-from app.models.entities import AssignmentAmbiguityReason, Hand, Project, Staff
+from app.models.entities import (
+    AssignmentAmbiguityReason,
+    Hand,
+    Project,
+    Staff,
+    VoiceAmbiguityReason,
+)
 from app.schemas import (
     ArtifactResponse,
     ConfigResponse,
@@ -31,6 +37,10 @@ from app.schemas import (
     TranscriptionProvenanceResponse,
     TranscriptionResponse,
     UploadResponse,
+    VoiceDiagnosticsResponse,
+    VoicedNoteResponse,
+    VoiceProvenanceResponse,
+    VoiceSeparationResponse,
 )
 from app.services.interpretation import InterpretationService
 from app.services.media import MediaService
@@ -38,6 +48,7 @@ from app.services.projects import ProjectService
 from app.services.quantization import QuantizationService
 from app.services.storage import SUPPORTED_EXTENSIONS, UploadService
 from app.services.transcription import PREVIEW_NOTE_LIMIT, TranscriptionService
+from app.services.voices import VoiceService
 
 router = APIRouter(prefix="/api")
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -342,6 +353,99 @@ def interpret_project(
             processor_version=str(provenance["processor_version"]),
             runtime=str(provenance["runtime"]),
             quantization_run_id=quantization_run_id,
+            input_fingerprint=str(provenance["input_fingerprint"]),
+            configuration=provenance,
+        ),
+        reused=result.reused,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/separate-voices",
+    response_model=VoiceSeparationResponse,
+)
+def separate_project_voices(
+    project_id: str,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> VoiceSeparationResponse:
+    project = session.get(Project, project_id)
+    if project is None:
+        raise PianovaError("project_not_found", "The requested project does not exist.", 404)
+    result = VoiceService(session, settings).separate(project)
+    provenance = result.provenance
+    interpretation_run_id = provenance.get("interpretation_run_id")
+    if not isinstance(interpretation_run_id, int) or isinstance(interpretation_run_id, bool):
+        raise PianovaError(
+            "voice_separation_provenance_invalid",
+            "The successful voice separation has invalid provenance.",
+            500,
+        )
+    preview_notes: list[VoicedNoteResponse] = []
+    for note in result.notes[: settings.voice_preview_note_limit]:
+        assignment = result.assignments[note.id]
+        if (
+            note.symbolic_start_beats is None
+            or note.symbolic_duration_beats is None
+            or note.chord_group is None
+        ):
+            raise PianovaError(
+                "voice_separation_result_invalid",
+                "The voice-separated note preview has incomplete timing.",
+                500,
+            )
+        preview_notes.append(
+            VoicedNoteResponse(
+                id=note.id,
+                pitch=note.pitch,
+                symbolic_start_beats=note.symbolic_start_beats,
+                symbolic_duration_beats=note.symbolic_duration_beats,
+                chord_group=note.chord_group,
+                hand=note.hand,
+                staff=note.staff,
+                voice=assignment.voice,
+                voice_confidence=assignment.voice_confidence,
+                voice_ambiguity_reason=(
+                    VoiceAmbiguityReason(assignment.voice_ambiguity_reason)
+                    if assignment.voice_ambiguity_reason
+                    else None
+                ),
+            )
+        )
+    diagnostics = result.diagnostics
+
+    def count(staff: Staff, voice: int) -> int:
+        return sum(
+            note.staff is staff and result.assignments[note.id].voice == voice
+            for note in result.notes
+        )
+
+    return VoiceSeparationResponse(
+        project=ProjectResponse.model_validate(project),
+        note_count=len(result.notes),
+        preview_notes=preview_notes,
+        diagnostics=VoiceDiagnosticsResponse(
+            treble_note_count=diagnostics.treble_note_count,
+            bass_note_count=diagnostics.bass_note_count,
+            chord_node_count=diagnostics.chord_node_count,
+            conflict_component_count=diagnostics.conflict_component_count,
+            two_voice_component_count=diagnostics.two_voice_component_count,
+            crossing_component_count=diagnostics.crossing_component_count,
+            capacity_exceeded_count=diagnostics.capacity_exceeded_count,
+            unresolved_staff_count=diagnostics.unresolved_staff_count,
+            resolved_count=diagnostics.resolved_count,
+            unknown_count=diagnostics.unknown_count,
+            treble_voice_1_count=count(Staff.TREBLE, 1),
+            treble_voice_2_count=count(Staff.TREBLE, 2),
+            bass_voice_1_count=count(Staff.BASS, 1),
+            bass_voice_2_count=count(Staff.BASS, 2),
+        ),
+        provenance=VoiceProvenanceResponse(
+            run_id=result.run.id,
+            processor_name=str(provenance["processor_name"]),
+            processor_version=str(provenance["processor_version"]),
+            runtime=str(provenance["runtime"]),
+            interpretation_run_id=interpretation_run_id,
             input_fingerprint=str(provenance["input_fingerprint"]),
             configuration=provenance,
         ),

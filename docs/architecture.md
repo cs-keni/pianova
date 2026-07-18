@@ -9,7 +9,7 @@ Next.js browser UI
   | typed JSON and multipart HTTP
   v
 FastAPI routes
-  |-- services: project lifecycle, storage, media preparation, transcription, timing, interpretation
+  |-- services: project lifecycle, storage, media preparation, transcription, timing, interpretation, voices
   |   `-- stage_runner: shared symbolic-stage transaction boundaries
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
@@ -108,14 +108,14 @@ notation-library, or ML dependency. `InterpretationService` validates persisted 
 trusting stored JSON. A genuine re-quantization clears all downstream assignments and its current
 run pointer in the same transaction; quantization reuse leaves interpretation intact.
 
-Quantization and interpretation share only their transaction shell through
+Quantization, interpretation, and voice separation share only their transaction shell through
 `app.services.stage_runner`: create and commit the durable RUNNING audit row, enforce the
 stage-owned project compare-and-swap before committing success, and mark the run failed after the
 caller rolls back. Fingerprints, reuse validation, note writes, CAS predicates, and structured
 errors remain inside each stage service. This keeps the helper reusable for voice separation
 without turning stage-specific policy into hidden framework behavior.
 
-The pure voice engine now exists independently of persistence and HTTP:
+Voice separation is a lightweight, artifact-free boundary:
 
 ```text
 interpreted VoiceNote values
@@ -132,8 +132,17 @@ interpreted VoiceNote values
 dependency. Its hard forced-only rule creates voice 2 only when overlap makes one notation stream
 invalid. Alembic revision `20260718_0007` now provides nullable project run ownership, a
 non-negative voice revision, and exact note-level unprocessed/resolved/unknown storage states.
-The service, endpoint, and capability remain pending T4, so this engine is not yet a user-visible
-product capability.
+`VoiceService` validates current interpretation ownership and complete interpreted evidence,
+fingerprints the ordered notes and effective settings, and distrusts malformed or invariant-breaking
+stored results before reuse. `POST /api/projects/{project_id}/separate-voices` returns a bounded
+preview, per-staff voice counts, structural diagnostics, provenance, and reuse state. The backend
+capability is available; the frontend action remains pending T5.
+
+Genuine re-quantization invalidates both interpretation and voice state, while genuine
+re-interpretation invalidates voice state. These cascade transactions clear downstream fields and
+run pointers and increment downstream revisions with SQL-relative expressions. Combined with each
+stage's compare-and-swap predicates, this prevents concurrent upstream and voice commits from
+losing an invalidation increment; the stale transaction fails with a retryable conflict.
 
 ## External executables
 
@@ -166,6 +175,6 @@ ordinary API tests and startup when the optional environment is absent.
 - Synchronous normalization is simple and visible but holds one API request open; a local worker remains deferred until real file durations justify it.
 - A fresh transcription process isolates failures but reloads TensorFlow for each project. A persistent local worker is deferred until measured throughput justifies its lifecycle complexity.
 - One global tempo and straight sixteenth-note grid provide a testable baseline, but rubato maps, swing, tuplets, compound meter, and inferred downbeats require later evidence and UX.
-- Pitch-contiguous chord splits and passage continuity provide an inspectable hand/staff baseline, but voice separation, non-contiguous handings, key-aware spelling, and learned models require separate evaluation contracts.
+- Pitch-contiguous chord splits, passage continuity, and deterministic conflict coloring provide inspectable hand/staff/voice baselines, but non-contiguous handings, key-aware spelling, contrapuntal identity, and learned models require separate evaluation contracts.
 
 Related: [pipeline](pipeline.md), [data model](data-model.md), and [roadmap](roadmap.md).

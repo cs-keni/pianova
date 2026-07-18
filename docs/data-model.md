@@ -74,7 +74,7 @@ This split lets Pianova simplify rubato into readable rhythm without destroying 
 
 ## ProcessingRun
 
-Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, quantization, and interpretation create running and terminal audit rows.
+Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, quantization, interpretation, and voice separation create running and terminal audit rows.
 
 Transcription runs additionally retain `model_name`, `model_version`, `model_runtime`, and `configuration_json`. This records the Basic Pitch/TensorFlow dependency versions and thresholds used to produce the raw evidence.
 
@@ -87,14 +87,16 @@ current quantization ownership, input fingerprint, scoring settings, work bounds
 The project current-run pointer plus interpretation revision identify the owner of persisted
 hand/staff state. Re-quantization clears that pointer and all assignments atomically.
 
-Voice persistence fields exist, but no `voice_separation` ProcessingRun is created until the T4
-service boundary lands. That service will own provenance, reuse validation, cascade invalidation,
-and the project current-run pointer.
+Voice runs keep the ML columns empty. Their JSON records processor/runtime identity, current
+interpretation ownership, input fingerprint, effective thresholds, algorithm version, and
+diagnostics. The project current-run pointer plus voice revision identify the owner of persisted
+voice state. Genuine upstream recomputation clears downstream pointers and fields atomically;
+SQL-relative revision increments preserve invalidation under concurrent stage commits.
 
 ## API schemas
 
 - `ProjectCreate`: `title`, 1-120 characters; whitespace-only titles are rejected by the service.
-- `ProjectResponse`: project identity, source metadata, current timing metadata, revision, and timestamps.
+- `ProjectResponse`: project identity, source metadata, current stage ownership/revisions, and timestamps.
 - `HealthResponse`: application state, dependency probes, and capability registry.
 - `DependencyResponse`: executable name, availability, resolved path, version line, and error.
 - `ConfigResponse`: upload limit, extensions, and workspace location.
@@ -103,6 +105,7 @@ and the project current-run pointer.
 - `TranscriptionResponse`: note-event and raw-MIDI Artifacts, total note count, a bounded note preview, model provenance, and whether existing output was reused.
 - `QuantizationResponse`: updated project timing, bounded symbolic-note preview, typed fit diagnostics, processor provenance, and reuse state.
 - `InterpretationResponse`: updated ownership/revision, bounded assignment preview, resolved/unknown and work diagnostics, processor provenance, and reuse state.
+- `VoiceSeparationResponse`: updated ownership/revision, bounded voice preview, per-staff voice counts and structural diagnostics, processor provenance, and reuse state.
 
 API failures use `{ "error": { "code", "message", "details" } }`. Validation failures use the same envelope.
 

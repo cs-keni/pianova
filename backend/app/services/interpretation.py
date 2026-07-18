@@ -98,6 +98,7 @@ class InterpretationService:
 
         expected_revision = project.interpretation_revision
         expected_quantization_run_id = project.current_quantization_run_id
+        expected_voice_revision = project.voice_revision
         run = self.stage_runner.precommit_run(
             project_id=project.id,
             configuration=configuration,
@@ -122,6 +123,9 @@ class InterpretationService:
                     if assignment.staff_ambiguity_reason
                     else None
                 )
+                note.voice = None
+                note.voice_confidence = None
+                note.voice_ambiguity_reason = None
             completed = {
                 **configuration,
                 "diagnostics": _diagnostics_dict(interpreted.diagnostics),
@@ -135,10 +139,13 @@ class InterpretationService:
                     Project.id == project.id,
                     Project.interpretation_revision == expected_revision,
                     Project.current_quantization_run_id == expected_quantization_run_id,
+                    Project.voice_revision == expected_voice_revision,
                 )
                 .values(
                     current_interpretation_run_id=run.id,
                     interpretation_revision=expected_revision + 1,
+                    current_voice_run_id=None,
+                    voice_revision=Project.voice_revision + 1,
                     updated_at=utc_now(),
                 ),
                 conflict_error=PianovaError(

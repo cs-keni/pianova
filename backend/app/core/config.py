@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     )
     interpretation_preview_note_limit: int = Field(default=50, ge=1, le=500)
     interpretation_algorithm_version: str = "1.0.0"
+    voice_close_separation_semitones: float = Field(default=2.0, ge=0, le=48)
+    voice_high_separation_semitones: float = Field(default=7.0, gt=0, le=48)
+    voice_preview_note_limit: int = Field(default=50, ge=1, le=500)
+    voice_algorithm_version: str = "1.0.0"
 
     @field_validator("workspace_dir", mode="before")
     @classmethod
@@ -104,6 +108,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "interpretation_high_confidence_margin must meet or exceed ambiguity margin"
             )
+        if self.voice_high_separation_semitones < self.voice_close_separation_semitones:
+            raise ValueError("voice_high_separation_semitones must meet or exceed close separation")
         return self
 
     @property

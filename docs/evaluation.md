@@ -70,6 +70,13 @@ reordering. Every resolved fixture checks the invariant that overlapping notes i
 two-voice components, capacity-exceeded notes, and crossing components. These fixtures prove the
 contract, not note-level musical voice accuracy; decision scores remain uncalibrated.
 
+Voice API and failure-path tests cover prerequisites, current-run ownership, complete interpreted
+evidence, success persistence, bounded counts/provenance, hardened reuse, malformed stored JSON,
+invariant repair, settings-driven recomputation, rollback-safe failures, and conflicts. Four
+actual-service interleaving tests exercise both commit orders between voice separation and each of
+interpretation and quantization, proving stale writers lose without losing SQL-relative cascade
+increments.
+
 The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
 normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
 accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing and runs

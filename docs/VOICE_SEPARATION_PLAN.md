@@ -1,6 +1,6 @@
 # Voice Separation Plan
 
-Status: reviewed execution plan, approved 2026-07-18. T1-T3 are complete; T4-T7 remain.
+Status: reviewed execution plan, approved 2026-07-18. T1-T4 are complete; T5-T7 remain.
 
 ## Goal
 
@@ -304,7 +304,7 @@ Structured failures:
 - `voice_separation_failed` (500)
 
 Ambiguity is not an error response. The capability registry gains a **new** `voice_separation`
-capability registered as available (no voice capability exists today); key detection, spelling,
+capability registered as available; key detection, spelling,
 cleaned MIDI, and score generation remain truthfully unimplemented.
 
 ## Invalidation cascade
@@ -477,7 +477,7 @@ documentation step.
   migration `20260718_0007` with the enumerated tri-state check.
   - Files: `backend/app/models/`, `backend/alembic/versions/`
   - Verify: `alembic upgrade head && alembic check`
-- [ ] **T4 (P1)** — backend boundary — voice service on stage_runner, cascade invalidation with
+- [x] **T4 (P1)** — backend boundary — voice service on stage_runner, cascade invalidation with
   SQL-relative increments in quantization and interpretation services, interleaving tests,
   schemas, route, new capability registration, and full API/failure coverage.
   - Files: `backend/app/services/`, `backend/app/api/`, `backend/app/schemas/`, `backend/tests/`

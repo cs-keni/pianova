@@ -36,6 +36,15 @@ def test_capabilities_require_both_ffmpeg_tools() -> None:
     assert capabilities["media_normalization"].state is CapabilityState.UNAVAILABLE
     assert capabilities["transcription"].state is CapabilityState.UNAVAILABLE
     assert capabilities["score_rendering"].state is CapabilityState.NOT_IMPLEMENTED
+    assert capabilities["voice_separation"].state is CapabilityState.AVAILABLE
+
+
+def test_voice_separation_settings_require_ordered_thresholds() -> None:
+    with pytest.raises(ValueError, match="voice_high_separation_semitones"):
+        Settings(
+            voice_close_separation_semitones=8,
+            voice_high_separation_semitones=7,
+        )
 
 
 def test_upload_limit_is_exposed_in_bytes(tmp_path: Path) -> None:

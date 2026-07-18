@@ -112,6 +112,7 @@ class QuantizationService:
 
         expected_revision = project.quantization_revision
         expected_interpretation_revision = project.interpretation_revision
+        expected_voice_revision = project.voice_revision
         run = self.stage_runner.precommit_run(
             project_id=project.id,
             configuration=request_configuration,
@@ -138,6 +139,9 @@ class QuantizationService:
                 note.staff_confidence = None
                 note.hand_ambiguity_reason = None
                 note.staff_ambiguity_reason = None
+                note.voice = None
+                note.voice_confidence = None
+                note.voice_ambiguity_reason = None
 
             completed_configuration = {
                 **request_configuration,
@@ -158,6 +162,7 @@ class QuantizationService:
                     Project.id == project.id,
                     Project.quantization_revision == expected_revision,
                     Project.interpretation_revision == expected_interpretation_revision,
+                    Project.voice_revision == expected_voice_revision,
                 )
                 .values(
                     estimated_tempo_bpm=timing.estimated_tempo_bpm,
@@ -171,7 +176,9 @@ class QuantizationService:
                     current_quantization_run_id=run.id,
                     quantization_revision=expected_revision + 1,
                     current_interpretation_run_id=None,
-                    interpretation_revision=expected_interpretation_revision + 1,
+                    interpretation_revision=Project.interpretation_revision + 1,
+                    current_voice_run_id=None,
+                    voice_revision=Project.voice_revision + 1,
                     updated_at=utc_now(),
                 ),
                 conflict_error=PianovaError(

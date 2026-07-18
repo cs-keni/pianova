@@ -17,6 +17,15 @@
   bounded decision score, typed ambiguity reason, `voice >= 1`, and the exact enumerated tri-state
   database check. Ten persistence tests prove the valid states and reject every invalid combination
   and bound.
+- Added `VoiceService` on the shared stage runner with strict interpretation prerequisites,
+  versioned/fingerprinted execution, hardened stored-result validation, rollback-safe failures,
+  optimistic concurrency, and synchronous `POST /api/projects/{project_id}/separate-voices`.
+- Registered `voice_separation` as an available backend capability. The typed response includes a
+  bounded hand/staff/voice preview, per-staff voice 1/2 counts, structural diagnostics,
+  provenance, ownership/revision, and reuse state.
+- Genuine quantization and interpretation recomputation now cascade voice invalidation with
+  SQL-relative revision increments. Four actual-service tests cover both commit orders against
+  quantization and interpretation so stale writers lose without dropping an increment.
 - Added independent passage-level hand and notation-staff interpretation with bounded dynamic programming, competing-path confidence, explicit unknown assignments, typed ambiguity reasons, and deterministic diagnostics.
 - Added Alembic revision `20260716_0006` plus project ownership/revision and note assignment/confidence/reason fields with database checks.
 - Added a hardened interpretation service with fingerprinted/versioned reuse, persisted configuration/diagnostics, ownership and assignment validation, optimistic concurrency, rollback-safe failed runs, and explicit structured errors.
@@ -27,8 +36,8 @@
 
 ## Checks run
 
-- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 36 source files;
-  pytest passed 103 tests. The original 77 tests pass unmodified with the new helper tests excluded.
+- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 37 source files;
+  pytest passed 116 tests. The original 77 tests pass unmodified with the new helper tests excluded.
 - Database: Alembic upgraded through `20260718_0007`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
 - Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, and hand/staff interpretation.
@@ -36,11 +45,9 @@
 
 ## Remaining work
 
-The voice-separation milestone now has a reviewed and approved execution plan in
-`docs/VOICE_SEPARATION_PLAN.md` (2026-07-18): typed contract, two-coloring engine, cascade
-invalidation semantics, musical fixtures, and verification matrix are defined. T1's stage-runner
-extraction, T2's pure engine, and T3's persistence contract are complete. Begin at T4 (backend
-boundary), then continue through T5-T7 in plan order. Key
+The voice-separation milestone follows the reviewed plan in `docs/VOICE_SEPARATION_PLAN.md`.
+T1-T4 are complete. Begin at T5 (frontend action, status, counts, uncertainty), then continue
+through T6 live verification and T7 final consistency in plan order. Key
 detection and enharmonic spelling follow voices. Cleaned MIDI, MusicXML,
 rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain deferred in
 that order.
@@ -61,4 +68,5 @@ that order.
 
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
 reviewed voice plan is shipped as `b20fb17`. Voice implementation is in progress: T1 is shipped as
-`14999b2`, T2 is shipped as `9c59b24`, T3 is complete in the current slice, and T4 is next.
+`14999b2`, T2 as `9c59b24`, T3 as `8066270`, and T4 is the current delivery slice pending its full
+verification commit.
