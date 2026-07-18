@@ -1,6 +1,6 @@
 # Voice Separation Plan
 
-Status: reviewed execution plan, approved 2026-07-18. Not yet implemented.
+Status: reviewed execution plan, approved 2026-07-18. T1 is complete; T2-T7 remain.
 
 ## Goal
 
@@ -464,7 +464,7 @@ Documentation is part of every task's definition of done: each task updates the 
 invalidates in the same commit, per repository process. T7 is a final consistency sweep, not the
 documentation step.
 
-- [ ] **T1 (P1)** — stage-runner extraction — extract precommit/CAS/mark-failed mechanics into
+- [x] **T1 (P1)** — stage-runner extraction — extract precommit/CAS/mark-failed mechanics into
   `app/services/stage_runner.py`; migrate quantization and interpretation services with zero
   behavior change; land as its own commit.
   - Files: `backend/app/services/`, `backend/tests/test_stage_runner.py`

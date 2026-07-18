@@ -90,3 +90,15 @@
 - `POST /api/projects/{project_id}/interpret` and the capability registry expose the implemented boundary. The frontend adds an explicit action, disables duplicate submission, recovers after API failure, and displays resolved/unknown hand and staff evidence without claiming voices, spelling, cleaned MIDI, or score generation.
 - The real generated five-note phrase now crosses FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, persistence, and hand/staff interpretation in Playwright.
 - Verification baseline is now Ruff plus formatting, strict mypy across 34 backend application sources, 77 pytest tests, Alembic through `20260716_0006` with no drift, five component tests, a clean production build, and three live Chromium flows.
+
+## 2026-07-18 — Shared symbolic-stage transaction runner
+
+- Extracted `app.services.stage_runner.StageRunner` before voice implementation. It owns the
+  durable RUNNING precommit, success-run completion plus project compare-and-swap row-count gate,
+  and rollback-following failed-run audit update.
+- Stage policy remains explicit: quantization and interpretation still own fingerprints, reuse
+  validation, note mutations, CAS predicates and values, conflict errors, and result contracts.
+  The extraction therefore changes no endpoint or persistence behavior.
+- The original 77 backend tests pass unmodified when the new helper test file is excluded. Three
+  isolated helper tests raise the baseline to 80 and cover precommit, CAS winner/loser, and failure
+  marking.

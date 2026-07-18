@@ -10,6 +10,7 @@ Next.js browser UI
   v
 FastAPI routes
   |-- services: project lifecycle, storage, media preparation, transcription, timing, interpretation
+  |   `-- stage_runner: shared symbolic-stage transaction boundaries
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
   v
@@ -106,6 +107,13 @@ The pure `app.symbolic.interpretation` module has no database, filesystem, front
 notation-library, or ML dependency. `InterpretationService` validates persisted reuse rather than
 trusting stored JSON. A genuine re-quantization clears all downstream assignments and its current
 run pointer in the same transaction; quantization reuse leaves interpretation intact.
+
+Quantization and interpretation share only their transaction shell through
+`app.services.stage_runner`: create and commit the durable RUNNING audit row, enforce the
+stage-owned project compare-and-swap before committing success, and mark the run failed after the
+caller rolls back. Fingerprints, reuse validation, note writes, CAS predicates, and structured
+errors remain inside each stage service. This keeps the helper reusable for voice separation
+without turning stage-specific policy into hidden framework behavior.
 
 ## External executables
 

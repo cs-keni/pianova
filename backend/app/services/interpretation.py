@@ -21,6 +21,7 @@ from app.models.entities import (
     Staff,
     utc_now,
 )
+from app.services.stage_runner import StageRunner
 from app.symbolic.interpretation import (
     InterpretationDiagnostics,
     InterpretationError,
@@ -50,6 +51,7 @@ class InterpretationService:
     def __init__(self, session: Session, settings: Settings) -> None:
         self.session = session
         self.settings = settings
+        self.stage_runner = StageRunner(session, stage=PROCESSING_STAGE, logger=logger)
 
     def interpret(self, project: Project) -> InterpretationServiceResult:
         if project.current_quantization_run_id is None:
@@ -96,15 +98,10 @@ class InterpretationService:
 
         expected_revision = project.interpretation_revision
         expected_quantization_run_id = project.current_quantization_run_id
-        run = ProcessingRun(
+        run = self.stage_runner.precommit_run(
             project_id=project.id,
-            stage=PROCESSING_STAGE,
-            status=ProcessingStatus.RUNNING,
-            configuration_json=json.dumps(configuration, sort_keys=True),
-            started_at=utc_now(),
+            configuration=configuration,
         )
-        self.session.add(run)
-        self.session.commit()
         try:
             interpreted = interpret_notes(symbolic_notes, self._settings())
             assignments = {item.note_id: item for item in interpreted.notes}
@@ -129,12 +126,11 @@ class InterpretationService:
                 **configuration,
                 "diagnostics": _diagnostics_dict(interpreted.diagnostics),
             }
-            run.configuration_json = json.dumps(completed, sort_keys=True)
-            run.status = ProcessingStatus.SUCCEEDED
-            run.completed_at = utc_now()
-            self.session.flush()
-            updated = self.session.execute(
-                update(Project)
+            self.stage_runner.commit_success(
+                project=project,
+                run=run,
+                configuration=completed,
+                project_update=update(Project)
                 .where(
                     Project.id == project.id,
                     Project.interpretation_revision == expected_revision,
@@ -144,17 +140,13 @@ class InterpretationService:
                     current_interpretation_run_id=run.id,
                     interpretation_revision=expected_revision + 1,
                     updated_at=utc_now(),
-                )
-                .execution_options(synchronize_session=False)
-            )
-            if getattr(updated, "rowcount", 0) != 1:
-                raise PianovaError(
+                ),
+                conflict_error=PianovaError(
                     "interpretation_conflict",
                     "The project timing changed during interpretation. Retry the latest result.",
                     409,
-                )
-            self.session.commit()
-            self.session.refresh(project)
+                ),
+            )
             return InterpretationServiceResult(
                 run=run,
                 notes=notes,
@@ -165,15 +157,15 @@ class InterpretationService:
             )
         except InterpretationError as error:
             self.session.rollback()
-            self._mark_failed(run.id, error.message)
+            self.stage_runner.mark_failed(run.id, error.message)
             raise PianovaError(error.code, error.message, 422, error.details) from error
         except PianovaError as error:
             self.session.rollback()
-            self._mark_failed(run.id, error.message)
+            self.stage_runner.mark_failed(run.id, error.message)
             raise
         except Exception as error:
             self.session.rollback()
-            self._mark_failed(run.id, "Interpretation failed.")
+            self.stage_runner.mark_failed(run.id, "Interpretation failed.")
             logger.exception("Interpretation failed for project %s", project.id)
             raise PianovaError(
                 "interpretation_failed",
@@ -423,18 +415,6 @@ class InterpretationService:
             and diagnostics.resolved_hand_count + diagnostics.unknown_hand_count == len(notes)
             and diagnostics.resolved_staff_count + diagnostics.unknown_staff_count == len(notes)
         )
-
-    def _mark_failed(self, run_id: int, message: str) -> None:
-        try:
-            run = self.session.get(ProcessingRun, run_id)
-            if run is not None:
-                run.status = ProcessingStatus.FAILED
-                run.error_message = message
-                run.completed_at = utc_now()
-                self.session.commit()
-        except Exception:
-            self.session.rollback()
-            logger.exception("Could not persist failed interpretation run %s", run_id)
 
 
 def _diagnostics_dict(diagnostics: InterpretationDiagnostics) -> dict[str, int]:

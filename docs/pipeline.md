@@ -54,7 +54,9 @@ and never alter raw timing. Same-pitch overlap repair is bounded and otherwise r
 Processing uses a raw-note fingerprint, effective configuration, and algorithm version for
 idempotent reuse. A running audit row is precommitted; success atomically updates project timing,
 note symbolic fields, the current-run pointer, and an optimistic revision. Failures and concurrent
-losers preserve the prior complete symbolic result.
+losers preserve the prior complete symbolic result. The transaction shell is provided by the
+shared `StageRunner`; timing-specific fingerprinting, reuse, note writes, and CAS conditions remain
+owned by `QuantizationService`.
 
 ## Implemented hand/staff interpretation contract
 
@@ -73,7 +75,8 @@ The service fingerprints the current quantization run and ordered symbolic notes
 settings/version identity. Matching successful state is reused only after run ownership, stage,
 diagnostics, confidence, and ambiguity invariants pass. Success atomically writes all note fields,
 the current interpretation run, and an optimistic revision. Re-quantization invalidates this state
-only when timing is genuinely recomputed.
+only when timing is genuinely recomputed. `InterpretationService` uses the same `StageRunner`
+transaction shell while retaining all interpretation-specific validation and persistence policy.
 
 ## Generated artifacts
 
