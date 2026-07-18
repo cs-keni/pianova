@@ -112,8 +112,8 @@ Quantization, interpretation, and voice separation share only their transaction 
 `app.services.stage_runner`: create and commit the durable RUNNING audit row, enforce the
 stage-owned project compare-and-swap before committing success, and mark the run failed after the
 caller rolls back. Fingerprints, reuse validation, note writes, CAS predicates, and structured
-errors remain inside each stage service. This keeps the helper reusable for voice separation
-without turning stage-specific policy into hidden framework behavior.
+errors remain inside each stage service. This supports all three symbolic services without turning
+stage-specific policy into hidden framework behavior.
 
 Voice separation is a lightweight, artifact-free boundary:
 

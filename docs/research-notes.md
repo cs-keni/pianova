@@ -63,6 +63,22 @@ weighted-DP draft, whose state could not soundly retain sustained-note voice ide
 small pitch separation also remain typed unknowns. The normalized separation value is an
 uncalibrated decision margin until corrected voice labels exist.
 
+This boundary intentionally targets notation layers rather than persistent contrapuntal identity.
+Kilian and Hoos's transcription-oriented approach likewise permits chords within one voice and
+enforces no improper overlap in the final output, but uses stochastic local optimization over
+pitch, rests, chord regularity, and voice leading. Pianova takes only the chord/overlap insight and
+uses deterministic two-coloring because the current product rule creates a second layer only when
+overlap forces it: [Kilian and Hoos, ISMIR 2002](https://archives.ismir.net/ismir2002/paper/000005.pdf).
+Later contig-connection work targets longer-lived monophonic streams and explicitly notes that
+polyphonic textures with variable-sized chords are not always meaningfully separable; that is a
+future contrapuntal-analysis problem, not this milestone:
+[Guiomard-Kagan et al., ISMIR 2016](https://archives.ismir.net/ismir2016/paper/000129.pdf).
+
+music21's `Stream.makeVoices()` can isolate overlaps into separate `Voice` objects, but it remains
+outside the runtime because the present engine needs explicit typed unknowns, deterministic
+staff-scoped orientation, versioned diagnostics, and persistence ownership:
+[music21 `makeVoices`](https://music21.org/music21docs/moduleReference/moduleStreamBase.html#music21.stream.base.Stream.makeVoices).
+
 ## Datasets and evaluation sources
 
 Candidate public research corpora include MAESTRO for aligned piano audio/MIDI and MAPS for piano transcription evaluation. Licensing, permitted redistribution, splits, and format conversion must be documented before any fixture is committed. Small synthetic WAV and symbolic fixtures are sufficient for infrastructure tests.

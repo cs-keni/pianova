@@ -2,12 +2,9 @@
 
 ## Active milestone
 
-Hand and staff interpretation is complete. The next ordered milestone is voice separation followed
-by key detection and enharmonic spelling over the verified interpreted-note boundary. The reviewed
-execution plan for the voice slice is `docs/VOICE_SEPARATION_PLAN.md` (approved 2026-07-18);
-implementation is underway. T1's shared stage-runner extraction, T2's pure voice engine, T3's
-checked persistence contract, T4's backend boundary, T5's frontend, and T6 live verification are
-complete; T7's final consistency sweep is current.
+Voice separation is complete. The next ordered milestone is key detection and enharmonic spelling
+over the verified notation-voice boundary. The implemented and verified voice plan is
+`docs/VOICE_SEPARATION_PLAN.md`; all T1-T7 tasks are complete.
 
 ## Status
 
@@ -56,11 +53,9 @@ atomically invalidates downstream state; matching evidence and settings reuse cu
 - `POST /api/projects/{project_id}/separate-voices` returns a bounded preview, per-staff voice
   counts, structural diagnostics, provenance, ownership/revision, and reuse state.
 
-## Current implementation target
+## Completed milestone contract
 
-Implement T7 in `docs/VOICE_SEPARATION_PLAN.md`: sweep configuration, READMEs, architecture,
-pipeline, data model, research, evaluation, roadmap, task state, handoff, and engineering log for
-consistency, then run the final verification matrix. Locked review decisions:
+The voice milestone is closed with these locked decisions:
 
 1. Voice separation is an independent fourth stage with its own endpoint, run ownership, and
    revision (D1).
@@ -70,9 +65,10 @@ consistency, then run the final verification matrix. Locked review decisions:
    hard forced-only rule; no weighted DP (D3, adopted from the cross-model review).
 4. Key detection and enharmonic spelling remain the subsequent boundary; no coupling was proven.
 
-Do not begin MusicXML or rendering until voice and spelling boundaries are verified.
+The next implementation target requires a reviewed key-detection and enharmonic-spelling plan.
+Do not begin MusicXML or rendering until the spelling boundary is verified.
 
 ## Active blockers
 
-None. The full generated-phrase flow now reaches the persisted voice boundary with five resolved
+None. The full generated-phrase flow reaches the persisted voice boundary with five resolved
 voice-1 notes and zero unknowns.

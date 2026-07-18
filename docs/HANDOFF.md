@@ -51,9 +51,9 @@
 
 ## Remaining work
 
-The voice-separation milestone follows the reviewed plan in `docs/VOICE_SEPARATION_PLAN.md`.
-T1-T6 are complete. Begin at T7's final consistency sweep. Key
-detection and enharmonic spelling follow voices. Cleaned MIDI, MusicXML,
+Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
+The next ordered milestone is a reviewed key-detection and enharmonic-spelling boundary over the
+persisted voices. Cleaned MIDI, MusicXML,
 rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain deferred in
 that order.
 
@@ -72,6 +72,6 @@ that order.
 ## Delivery state
 
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
-reviewed voice plan is shipped as `b20fb17`. Voice implementation is in progress: T1 is shipped as
-`14999b2`, T2 as `9c59b24`, T3 as `8066270`, T4 as `d6c2c30`, and T5 as `ee269f7`. T6 is the
-current delivery slice pending its full verification commit.
+reviewed voice plan is shipped as `b20fb17`. Voice delivery slices are T1 `14999b2`, T2 `9c59b24`,
+T3 `8066270`, T4 `d6c2c30`, T5 `ee269f7`, and T6 `2a938fc`. T7 completes the shared-context sweep
+and final verification in this delivery.

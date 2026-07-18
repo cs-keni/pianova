@@ -161,3 +161,13 @@
   unknowns. The browser asserts the final seven-step state and downstream-stage truthfulness.
 - This remains an orchestration contract over one synthetic phrase, not a musical voice-accuracy
   benchmark or evidence for contrapuntal identity.
+
+## 2026-07-18 — Voice-separation milestone completion
+
+- Completed the final consistency sweep across configuration, both READMEs, architecture,
+  pipeline, data model, research, evaluation, roadmap, task state, handoff, and the approved plan.
+- Research context now distinguishes forced notation layers from longer-lived contrapuntal stream
+  separation and records why the deterministic engine does not adopt stochastic optimization,
+  contig connection, or music21 runtime behavior.
+- The final baseline remains 37 strict-mypy application sources, 116 pytest tests, five component
+  tests, a production build, and three live Chromium flows through notation voices.

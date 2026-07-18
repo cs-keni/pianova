@@ -16,7 +16,7 @@ Pianova is a local-first, AI-assisted piano transcription application. The curre
 - Deterministic note-onset tempo estimation, simple `2/4`, `3/4`, or `4/4` meter, explicit BPM/origin overrides, exact internal fractions, chord grouping, and readable straight-note quantization without changing raw timing.
 - Bounded passage-level left/right hand and bass/treble staff assignment with independent confidence, explicit unknown states, typed ambiguity reasons, fingerprinted reuse, and concurrency-safe persistence.
 - Deterministic per-staff notation-voice separation with a hard overlap-forced second voice, typed successful unknowns, fingerprinted reuse, and concurrency-safe cascade invalidation.
-- A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, and bounded raw, symbolic-timing, and interpretation previews.
+- A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, and bounded raw, symbolic-timing, interpretation, and notation-voice previews.
 - Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
 - Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
@@ -252,8 +252,9 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 ## Roadmap
 
 Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, readable
-global timing, and independent hand/staff interpretation are complete. Next: voices and spelling, then MusicXML, optional score rendering,
-correction tools, evaluation, and finally Synthesia analysis. See the
+global timing, independent hand/staff interpretation, and notation-voice separation are complete.
+Next: key-aware spelling, then MusicXML, optional score rendering, correction tools, evaluation,
+and finally Synthesia analysis. See the
 [milestone roadmap](docs/roadmap.md).
 
 ## License
