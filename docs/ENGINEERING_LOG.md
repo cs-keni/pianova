@@ -141,3 +141,14 @@
 - Voice ambiguity remains a successful output with `unresolved_staff`,
   `voice_capacity_exceeded`, `crossing`, or `close_alternative`; there is no complexity error or
   weighted dynamic-programming path. `voice_confidence` remains an uncalibrated decision score.
+
+## 2026-07-18 — Voice-separation frontend boundary
+
+- Added the explicit post-interpretation `Separate voices` action with duplicate-submit locking,
+  recoverable API errors, typed response state, and a seven-step terminal workflow state.
+- The result view separates resolved from unknown counts, shows treble/bass voice 1/2 counts, and
+  renders voice, uncalibrated decision score, and typed reason as distinct evidence columns.
+  Unknown voices are labeled unknown rather than presented as completed notation.
+- Component coverage exercises action gating, the pending label/disabled state, failure and retry,
+  successful counts, unknown evidence, and truthful copy deferring key detection, pitch spelling,
+  cleaned MIDI, and score generation.

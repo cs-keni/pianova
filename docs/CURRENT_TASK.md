@@ -6,7 +6,8 @@ Hand and staff interpretation is complete. The next ordered milestone is voice s
 by key detection and enharmonic spelling over the verified interpreted-note boundary. The reviewed
 execution plan for the voice slice is `docs/VOICE_SEPARATION_PLAN.md` (approved 2026-07-18);
 implementation is underway. T1's shared stage-runner extraction, T2's pure voice engine, T3's
-checked persistence contract, and T4's backend boundary are complete; T5's frontend is current.
+checked persistence contract, T4's backend boundary, and T5's frontend are complete; T6 live
+verification is current.
 
 ## Status
 
@@ -39,8 +40,8 @@ atomically invalidates downstream state; matching evidence and settings reuse cu
 - Successful recomputation uses optimistic concurrency and preserves the prior complete result on failure or conflict.
 - Genuine re-quantization clears downstream assignments, confidence, reasons, and current-run ownership in the same transaction; quantization reuse preserves them.
 - `POST /api/projects/{project_id}/interpret` returns a bounded preview, resolved/unknown counts, work diagnostics, provenance, ownership/revision, and reuse state.
-- The frontend exposes the interpretation action, pending/error recovery, and uncertainty preview;
-  its copy truthfully keeps the new backend voice action pending T5.
+- The frontend exposes interpretation and voice actions with pending/error recovery, uncertainty
+  evidence, per-staff voice counts, and truthful downstream-stage copy.
 
 ## Delivered voice backend boundary
 
@@ -57,9 +58,9 @@ atomically invalidates downstream state; matching evidence and settings reuse cu
 
 ## Current implementation target
 
-Implement T5 in `docs/VOICE_SEPARATION_PLAN.md`: the explicit frontend voice action, pending/error
-recovery, per-staff counts, and uncertainty preview. T6 live verification and T7's final
-consistency sweep follow sequentially. Locked review decisions:
+Implement T6 in `docs/VOICE_SEPARATION_PLAN.md`: extend the live generated-phrase Playwright flow
+through voice separation and assert the successful all-voice-1 baseline. T7's final consistency
+sweep follows. Locked review decisions:
 
 1. Voice separation is an independent fourth stage with its own endpoint, run ownership, and
    revision (D1).
@@ -73,5 +74,5 @@ Do not begin MusicXML or rendering until voice and spelling boundaries are verif
 
 ## Active blockers
 
-None. The backend boundary and all four real-service concurrency interleavings are verified; the
-frontend can consume the typed response without changing backend policy.
+None. The frontend component gate covers action gating, pending state, duplicate-submit
+prevention, failure recovery, counts, and unknown evidence; the live fixture can now exercise it.

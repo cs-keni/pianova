@@ -11,6 +11,7 @@ import {
   type Project,
   type QuantizationResponse,
   type TranscriptionResponse,
+  type VoiceSeparationResponse,
 } from "@/lib/api";
 
 function formatBytes(bytes: number): string {
@@ -60,6 +61,8 @@ export default function Home() {
   const [quantization, setQuantization] = useState<QuantizationResponse | null>(null);
   const [interpreting, setInterpreting] = useState(false);
   const [interpretation, setInterpretation] = useState<InterpretationResponse | null>(null);
+  const [separatingVoices, setSeparatingVoices] = useState(false);
+  const [voiceSeparation, setVoiceSeparation] = useState<VoiceSeparationResponse | null>(null);
   const [tempoOverride, setTempoOverride] = useState("");
   const [meter, setMeter] = useState("4/4");
   const [measureOrigin, setMeasureOrigin] = useState("");
@@ -193,6 +196,21 @@ export default function Home() {
     }
   }
 
+  async function separateVoices() {
+    if (!project || !interpretation || separatingVoices) return;
+    setSeparatingVoices(true);
+    setFormError(null);
+    try {
+      const response = await api.separateVoices(project.id);
+      setProject(response.project);
+      setVoiceSeparation(response);
+    } catch (error) {
+      setFormError(errorMessage(error));
+    } finally {
+      setSeparatingVoices(false);
+    }
+  }
+
   const mediaCapability = health?.capabilities.find(
     (capability) => capability.key === "media_normalization",
   );
@@ -248,8 +266,10 @@ export default function Home() {
             <div>
               <p className={styles.step}>
                 Step{" "}
-                {interpretation
-                  ? "6"
+                {voiceSeparation
+                  ? "7"
+                  : interpretation
+                    ? "6"
                   : quantization
                     ? "5"
                     : transcription
@@ -259,11 +279,13 @@ export default function Home() {
                         : project
                           ? "2"
                           : "1"}{" "}
-                of 6
+                of 7
               </p>
               <h3 id="workflow-title">
-                {interpretation
-                  ? "Hands and staves assigned"
+                {voiceSeparation
+                  ? "Notation voices ready"
+                  : interpretation
+                    ? "Hands and staves assigned"
                   : quantization
                     ? "Readable timing ready"
                   : transcription
@@ -296,6 +318,83 @@ export default function Home() {
                 {creating ? "Creating…" : "Create local project"}
               </button>
             </form>
+          ) : voiceSeparation ? (
+            <div className={styles.quantizationResult} role="status">
+              <div className={styles.success}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h4>Notation voice separation ready</h4>
+                  <p>
+                    {voiceSeparation.diagnostics.resolved_count} resolved ·{" "}
+                    {voiceSeparation.diagnostics.unknown_count} unknown
+                  </p>
+                  <p>
+                    Unknown voices remain evidence for review. Key detection, pitch spelling,
+                    cleaned MIDI, and score generation have not started.
+                  </p>
+                </div>
+              </div>
+              <dl className={styles.timingDiagnostics}>
+                <div>
+                  <dt>Treble voices</dt>
+                  <dd>
+                    V1 {voiceSeparation.diagnostics.treble_voice_1_count} · V2{" "}
+                    {voiceSeparation.diagnostics.treble_voice_2_count}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Bass voices</dt>
+                  <dd>
+                    V1 {voiceSeparation.diagnostics.bass_voice_1_count} · V2{" "}
+                    {voiceSeparation.diagnostics.bass_voice_2_count}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Structural unknowns</dt>
+                  <dd>
+                    {voiceSeparation.diagnostics.capacity_exceeded_count} capacity ·{" "}
+                    {voiceSeparation.diagnostics.crossing_component_count} crossing
+                  </dd>
+                </div>
+                <div>
+                  <dt>Processor</dt>
+                  <dd>{voiceSeparation.provenance.processor_version}</dd>
+                </div>
+              </dl>
+              <div className={styles.notePreview}>
+                <h4>Notation voice evidence</h4>
+                <div className={styles.noteTableWrap}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pitch</th>
+                        <th>Grid onset</th>
+                        <th>Hand</th>
+                        <th>Staff</th>
+                        <th>Voice</th>
+                        <th>Decision score</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {voiceSeparation.preview_notes.map((note) => (
+                        <tr key={note.id}>
+                          <td>
+                            {formatPitch(note.pitch)} <small>MIDI {note.pitch}</small>
+                          </td>
+                          <td>{note.symbolic_start_beats.toFixed(2)}</td>
+                          <td>{formatAssignment(note.hand)}</td>
+                          <td>{formatAssignment(note.staff)}</td>
+                          <td>{note.voice == null ? "Unknown" : `Voice ${note.voice}`}</td>
+                          <td>{Math.round(note.voice_confidence * 100)}%</td>
+                          <td>{formatReason(note.voice_ambiguity_reason)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           ) : interpretation ? (
             <div className={styles.quantizationResult} role="status">
               <div className={styles.success}>
@@ -374,6 +473,14 @@ export default function Home() {
                   </table>
                 </div>
               </div>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={separatingVoices}
+                onClick={separateVoices}
+              >
+                {separatingVoices ? "Separating notation voices…" : "Separate voices"}
+              </button>
             </div>
           ) : quantization ? (
             <div className={styles.quantizationResult} role="status">

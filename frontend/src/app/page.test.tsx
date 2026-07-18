@@ -34,6 +34,12 @@ const health = {
       state: "available",
       reason: "Independent hand and notation-staff assignment with uncertainty is ready.",
     },
+    {
+      key: "voice_separation",
+      label: "Notation voice separation",
+      state: "available",
+      reason: "Staff-scoped forced notation voices with explicit uncertainty are ready.",
+    },
   ],
 };
 
@@ -65,6 +71,8 @@ const project = {
   quantization_revision: 0,
   current_interpretation_run_id: null,
   interpretation_revision: 0,
+  current_voice_run_id: null,
+  voice_revision: 0,
   media_streams: [],
   created_at: "2026-07-14T00:00:00Z",
   updated_at: "2026-07-14T00:00:00Z",
@@ -98,7 +106,8 @@ describe("Pianova home", () => {
     expect(screen.getByText("Piano transcription")).toBeInTheDocument();
     expect(screen.getByText("Tempo and rhythm quantization")).toBeInTheDocument();
     expect(screen.getByText("Hand and staff assignment")).toBeInTheDocument();
-    expect(screen.getAllByText("available")).toHaveLength(4);
+    expect(screen.getByText("Notation voice separation")).toBeInTheDocument();
+    expect(screen.getAllByText("available")).toHaveLength(5);
   });
 
   it("creates a project once and advances to upload", async () => {
@@ -210,10 +219,13 @@ describe("Pianova home", () => {
       current_quantization_run_id: 3,
       quantization_revision: 1,
       interpretation_revision: 1,
+      voice_revision: 1,
     };
     let quantizationAttempts = 0;
     let interpretationAttempts = 0;
+    let voiceAttempts = 0;
     let resolveInterpretation!: (response: Response) => void;
+    let resolveVoices!: (response: Response) => void;
     vi.mocked(fetch).mockImplementation((input) => {
       const url = input.toString();
       if (url.endsWith("/api/health")) return Promise.resolve(jsonResponse(health));
@@ -360,6 +372,7 @@ describe("Pianova home", () => {
               ...quantizedProject,
               current_interpretation_run_id: 4,
               interpretation_revision: 2,
+              voice_revision: 2,
             },
             note_count: 1,
             preview_notes: [
@@ -395,6 +408,66 @@ describe("Pianova home", () => {
               runtime: "python 3.11.9",
               quantization_run_id: 3,
               input_fingerprint: "def456",
+              configuration: {},
+            },
+            reused: false,
+          }),
+        );
+      }
+      if (url.endsWith("/api/projects/project-1/separate-voices")) {
+        voiceAttempts += 1;
+        if (voiceAttempts === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveVoices = resolve;
+          });
+        }
+        return Promise.resolve(
+          jsonResponse({
+            project: {
+              ...quantizedProject,
+              current_interpretation_run_id: 4,
+              interpretation_revision: 2,
+              current_voice_run_id: 5,
+              voice_revision: 3,
+            },
+            note_count: 1,
+            preview_notes: [
+              {
+                id: 1,
+                pitch: 69,
+                symbolic_start_beats: 0,
+                symbolic_duration_beats: 0.5,
+                chord_group: 1,
+                hand: "unknown",
+                staff: "treble",
+                voice: null,
+                voice_confidence: 0.42,
+                voice_ambiguity_reason: "close_alternative",
+              },
+            ],
+            diagnostics: {
+              treble_note_count: 1,
+              bass_note_count: 0,
+              chord_node_count: 1,
+              conflict_component_count: 0,
+              two_voice_component_count: 0,
+              crossing_component_count: 0,
+              capacity_exceeded_count: 0,
+              unresolved_staff_count: 0,
+              resolved_count: 0,
+              unknown_count: 1,
+              treble_voice_1_count: 0,
+              treble_voice_2_count: 0,
+              bass_voice_1_count: 0,
+              bass_voice_2_count: 0,
+            },
+            provenance: {
+              run_id: 5,
+              processor_name: "pianova_notation_voice_separation",
+              processor_version: "1.0.0",
+              runtime: "python 3.11.9",
+              interpretation_run_id: 4,
+              input_fingerprint: "ghi789",
               configuration: {},
             },
             reused: false,
@@ -448,6 +521,7 @@ describe("Pianova home", () => {
     expect(screen.getByText("M1 · beat 1.00")).toBeInTheDocument();
     expect(screen.getByText("Override")).toBeInTheDocument();
     expect(quantizationAttempts).toBe(2);
+    expect(screen.queryByRole("button", { name: "Separate voices" })).not.toBeInTheDocument();
 
     const interpretButton = screen.getByRole("button", { name: "Assign hands and staves" });
     await user.click(interpretButton);
@@ -485,5 +559,40 @@ describe("Pianova home", () => {
       ),
     ).toBeInTheDocument();
     expect(interpretationAttempts).toBe(2);
+
+    const voiceButton = screen.getByRole("button", { name: "Separate voices" });
+    await user.click(voiceButton);
+    expect(screen.getByRole("button", { name: "Separating notation voices…" })).toBeDisabled();
+    expect(voiceAttempts).toBe(1);
+    resolveVoices(
+      jsonResponse(
+        {
+          error: {
+            code: "voice_separation_failed",
+            message: "Notation voices could not be separated.",
+          },
+        },
+        500,
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Notation voices could not be separated.",
+    );
+    await user.click(screen.getByRole("button", { name: "Separate voices" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Notation voice separation ready", level: 4 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0 resolved · 1 unknown")).toBeInTheDocument();
+    expect(screen.getAllByText("V1 0 · V2 0")).toHaveLength(2);
+    expect(screen.getAllByText("Unknown")).toHaveLength(2);
+    expect(screen.getByText("42%")).toBeInTheDocument();
+    expect(screen.getByText("close alternative")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Unknown voices remain evidence for review. Key detection, pitch spelling, cleaned MIDI, and score generation have not started.",
+      ),
+    ).toBeInTheDocument();
+    expect(voiceAttempts).toBe(2);
   });
 });

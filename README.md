@@ -2,7 +2,7 @@
 
 > Hear it. See it. Play it.
 
-Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, assigns independent hands and notation staves, and separates staff-scoped notation voices with explicit uncertainty. The voice API is implemented; its frontend action, pitch spelling, and score generation remain unfinished.
+Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, assigns independent hands and notation staves, and separates staff-scoped notation voices with explicit uncertainty. Pitch spelling and score generation remain unfinished.
 
 ## What works now
 
@@ -20,7 +20,7 @@ Pianova is a local-first, AI-assisted piano transcription application. The curre
 - Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
 - Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
-Not implemented in the interface yet: the voice-separation action. Key-aware pitch spelling, cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, and Synthesia analysis are not implemented anywhere. The interface never presents these stages as working.
+Not implemented: key-aware pitch spelling, cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
 
 ## Screenshots
 
@@ -164,11 +164,12 @@ Open `http://localhost:3000`. API documentation is at `http://127.0.0.1:18080/do
 ## Verify the implemented slice
 
 Create a project, upload a supported piano file, select **Inspect and prepare audio**, select
-**Transcribe piano**, select **Estimate tempo and quantize**, then select **Assign hands and
-staves**. Success means the page reports `Hand and staff interpretation ready`, shows resolved and
-unknown counts plus a bounded evidence preview, and preserves the normalized WAV, note-event JSON,
-raw MIDI, original timing, readable timing, and assignment provenance. If automatic tempo is
-ambiguous, enter a BPM override and retry.
+**Transcribe piano**, select **Estimate tempo and quantize**, select **Assign hands and staves**,
+then select **Separate voices**. Success means the page reports `Notation voice separation ready`,
+shows resolved and unknown voice counts plus per-staff counts and a bounded evidence preview, and
+preserves the normalized WAV, note-event JSON, raw MIDI, original timing, readable timing,
+assignment provenance, and voice provenance. If automatic tempo is ambiguous, enter a BPM
+override and retry.
 
 Run backend checks from `backend/`:
 

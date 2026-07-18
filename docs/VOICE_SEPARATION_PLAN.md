@@ -1,6 +1,6 @@
 # Voice Separation Plan
 
-Status: reviewed execution plan, approved 2026-07-18. T1-T4 are complete; T5-T7 remain.
+Status: reviewed execution plan, approved 2026-07-18. T1-T5 are complete; T6-T7 remain.
 
 ## Goal
 
@@ -482,7 +482,7 @@ documentation step.
   schemas, route, new capability registration, and full API/failure coverage.
   - Files: `backend/app/services/`, `backend/app/api/`, `backend/app/schemas/`, `backend/tests/`
   - Verify: `ruff check . && mypy app && pytest`
-- [ ] **T5 (P2)** — frontend — voice action, status, per-staff counts, uncertainty preview, and
+- [x] **T5 (P2)** — frontend — voice action, status, per-staff counts, uncertainty preview, and
   component tests.
   - Files: `frontend/src/`
   - Verify: `npm run lint && npm run typecheck && npm test`

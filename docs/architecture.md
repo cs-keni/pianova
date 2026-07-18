@@ -135,8 +135,9 @@ non-negative voice revision, and exact note-level unprocessed/resolved/unknown s
 `VoiceService` validates current interpretation ownership and complete interpreted evidence,
 fingerprints the ordered notes and effective settings, and distrusts malformed or invariant-breaking
 stored results before reuse. `POST /api/projects/{project_id}/separate-voices` returns a bounded
-preview, per-staff voice counts, structural diagnostics, provenance, and reuse state. The backend
-capability is available; the frontend action remains pending T5.
+preview, per-staff voice counts, structural diagnostics, provenance, and reuse state. The frontend
+exposes the stage as an explicit post-interpretation action with pending/error recovery and typed
+unknown evidence.
 
 Genuine re-quantization invalidates both interpretation and voice state, while genuine
 re-interpretation invalidates voice state. These cascade transactions clear downstream fields and

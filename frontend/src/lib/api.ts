@@ -51,6 +51,8 @@ export interface Project {
   quantization_revision: number;
   current_interpretation_run_id: number | null;
   interpretation_revision: number;
+  current_voice_run_id: number | null;
+  voice_revision: number;
   media_streams: MediaStream[];
   created_at: string;
   updated_at: string;
@@ -232,6 +234,61 @@ export interface InterpretationResponse {
   reused: boolean;
 }
 
+export type VoiceAmbiguityReason =
+  | "unresolved_staff"
+  | "voice_capacity_exceeded"
+  | "crossing"
+  | "close_alternative";
+
+export interface VoicedNote {
+  id: number;
+  pitch: number;
+  symbolic_start_beats: number;
+  symbolic_duration_beats: number;
+  chord_group: number;
+  hand: "left" | "right" | "unknown";
+  staff: "treble" | "bass" | "unknown";
+  voice: number | null;
+  voice_confidence: number;
+  voice_ambiguity_reason: VoiceAmbiguityReason | null;
+}
+
+export interface VoiceDiagnostics {
+  treble_note_count: number;
+  bass_note_count: number;
+  chord_node_count: number;
+  conflict_component_count: number;
+  two_voice_component_count: number;
+  crossing_component_count: number;
+  capacity_exceeded_count: number;
+  unresolved_staff_count: number;
+  resolved_count: number;
+  unknown_count: number;
+  treble_voice_1_count: number;
+  treble_voice_2_count: number;
+  bass_voice_1_count: number;
+  bass_voice_2_count: number;
+}
+
+export interface VoiceProvenance {
+  run_id: number;
+  processor_name: string;
+  processor_version: string;
+  runtime: string;
+  interpretation_run_id: number;
+  input_fingerprint: string;
+  configuration: Record<string, unknown>;
+}
+
+export interface VoiceSeparationResponse {
+  project: Project;
+  note_count: number;
+  preview_notes: VoicedNote[];
+  diagnostics: VoiceDiagnostics;
+  provenance: VoiceProvenance;
+  reused: boolean;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -307,6 +364,10 @@ export const api = {
     }),
   interpret: (projectId: string) =>
     request<InterpretationResponse>(`/api/projects/${projectId}/interpret`, {
+      method: "POST",
+    }),
+  separateVoices: (projectId: string) =>
+    request<VoiceSeparationResponse>(`/api/projects/${projectId}/separate-voices`, {
       method: "POST",
     }),
 };

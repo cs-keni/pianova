@@ -13,7 +13,7 @@ The current backend implements secure ingestion, typed media preparation, raw Ba
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
-| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Backend implemented; frontend pending |
+| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Implemented; live E2E pending |
 | Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Ambiguous key or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
@@ -106,6 +106,11 @@ clears both interpretation and voice state and advances both downstream revision
 increments are SQL-relative within the upstream transaction. Voice, interpretation, and
 quantization compare-and-swap predicates make either interleaving deterministic: the first valid
 commit wins and the stale stage returns a conflict without losing an increment.
+
+The frontend enables `Separate voices` only after interpretation succeeds, prevents duplicate
+submissions while pending, and preserves recoverable errors for retry. Success shows resolved and
+unknown totals, treble/bass voice 1/2 counts, and bounded hand/staff/voice evidence with the
+uncalibrated decision score and typed reason in separate columns.
 
 ## Generated artifacts
 

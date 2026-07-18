@@ -77,6 +77,10 @@ actual-service interleaving tests exercise both commit orders between voice sepa
 interpretation and quantization, proving stale writers lose without losing SQL-relative cascade
 increments.
 
+Frontend component coverage gates the action on successful interpretation, disables duplicate
+submits, recovers from an API failure, and renders resolved/unknown totals, per-staff counts,
+decision scores, and typed unknown reasons without presenting unknown notes as complete notation.
+
 The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
 normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
 accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing and runs
