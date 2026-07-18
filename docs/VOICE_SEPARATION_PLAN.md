@@ -1,6 +1,6 @@
 # Voice Separation Plan
 
-Status: reviewed execution plan, approved 2026-07-18. T1-T5 are complete; T6-T7 remain.
+Status: reviewed execution plan, approved 2026-07-18. T1-T6 are complete; T7 remains.
 
 ## Goal
 
@@ -486,7 +486,7 @@ documentation step.
   component tests.
   - Files: `frontend/src/`
   - Verify: `npm run lint && npm run typecheck && npm test`
-- [ ] **T6 (P1)** — live verification — extend the real browser flow through voice separation.
+- [x] **T6 (P1)** — live verification — extend the real browser flow through voice separation.
   - Files: `frontend/e2e/`
   - Verify: `npm run build && npm run test:e2e`
 - [ ] **T7 (P2)** — shared context sweep — final consistency pass over configuration, README,

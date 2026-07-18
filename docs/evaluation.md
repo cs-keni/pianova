@@ -83,8 +83,9 @@ decision scores, and typed unknown reasons without presenting unknown notes as c
 
 The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
 normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
-accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing and runs
-hand/staff interpretation. This proves the real transcription-to-interpretation boundary, not
+accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing, runs
+hand/staff interpretation, and separates notation voices. The monophonic phrase must resolve all
+five notes as voice 1 with no unknowns. This proves the real transcription-to-voice boundary, not
 general piano accuracy.
 
 ## Known limitations

@@ -84,12 +84,13 @@ function tinyMp4(): Buffer {
   }
 }
 
-test("interprets hands and staves for a real 120 BPM transcription", async ({ page }) => {
+test("separates notation voices for a real 120 BPM transcription", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto("/");
   await expect(page.getByText("API connected")).toBeVisible();
   await expect(page.getByText("Piano transcription", { exact: true })).toBeVisible();
   await expect(page.getByText("Hand and staff assignment", { exact: true })).toBeVisible();
+  await expect(page.getByText("Notation voice separation", { exact: true })).toBeVisible();
   await expect(page.getByText("not implemented").first()).toBeVisible();
 
   const title = `Playwright study ${Date.now()}`;
@@ -131,6 +132,17 @@ test("interprets hands and staves for a real 120 BPM transcription", async ({ pa
   await expect(
     page.getByText(
       "Voices, key and pitch spelling, cleaned MIDI, and score generation have not started.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Separate voices" }).click();
+  await expect(page.getByText("Notation voice separation ready", { exact: true })).toBeVisible();
+  await expect(page.getByText("5 resolved · 0 unknown", { exact: true })).toBeVisible();
+  await expect(page.getByText("Notation voice evidence", { exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Voice 1", exact: true })).toHaveCount(5);
+  await expect(page.getByText("Step 7 of 7", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Unknown voices remain evidence for review. Key detection, pitch spelling, cleaned MIDI, and score generation have not started.",
     ),
   ).toBeVisible();
 });

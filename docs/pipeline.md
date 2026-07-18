@@ -13,7 +13,7 @@ The current backend implements secure ingestion, typed media preparation, raw Ba
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
-| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Implemented; live E2E pending |
+| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Implemented |
 | Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Ambiguous key or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |

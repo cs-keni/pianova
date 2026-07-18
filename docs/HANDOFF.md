@@ -29,6 +29,9 @@
 - Extended the Next.js workflow with `Separate voices`, post-interpretation gating, pending/error
   recovery, duplicate-submit prevention, resolved/unknown totals, per-staff voice counts, and a
   bounded hand/staff/voice evidence table with decision scores and typed reasons.
+- Extended the live generated five-tone phrase through voice separation. Playwright verifies the
+  final evidence view, seven-step terminal state, truthful downstream copy, and all five notes
+  resolved as voice 1 with zero unknowns.
 - Added independent passage-level hand and notation-staff interpretation with bounded dynamic programming, competing-path confidence, explicit unknown assignments, typed ambiguity reasons, and deterministic diagnostics.
 - Added Alembic revision `20260716_0006` plus project ownership/revision and note assignment/confidence/reason fields with database checks.
 - Added a hardened interpretation service with fingerprinted/versioned reuse, persisted configuration/diagnostics, ownership and assignment validation, optimistic concurrency, rollback-safe failed runs, and explicit structured errors.
@@ -43,14 +46,13 @@
   pytest passed 116 tests. The original 77 tests pass unmodified with the new helper tests excluded.
 - Database: Alembic upgraded through `20260718_0007`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
-- Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, and hand/staff interpretation.
+- Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, hand/staff interpretation, and notation-voice separation.
 - Repository: `git diff --check` passed before delivery review.
 
 ## Remaining work
 
 The voice-separation milestone follows the reviewed plan in `docs/VOICE_SEPARATION_PLAN.md`.
-T1-T5 are complete. Begin at T6 live verification, then continue through T7 final consistency in
-plan order. Key
+T1-T6 are complete. Begin at T7's final consistency sweep. Key
 detection and enharmonic spelling follow voices. Cleaned MIDI, MusicXML,
 rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain deferred in
 that order.
@@ -71,5 +73,5 @@ that order.
 
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
 reviewed voice plan is shipped as `b20fb17`. Voice implementation is in progress: T1 is shipped as
-`14999b2`, T2 as `9c59b24`, T3 as `8066270`, and T4 as `d6c2c30`. T5 is the current delivery slice
-pending its full verification commit.
+`14999b2`, T2 as `9c59b24`, T3 as `8066270`, T4 as `d6c2c30`, and T5 as `ee269f7`. T6 is the
+current delivery slice pending its full verification commit.

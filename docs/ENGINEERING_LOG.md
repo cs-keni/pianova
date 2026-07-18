@@ -152,3 +152,12 @@
 - Component coverage exercises action gating, the pending label/disabled state, failure and retry,
   successful counts, unknown evidence, and truthful copy deferring key detection, pitch spelling,
   cleaned MIDI, and score generation.
+
+## 2026-07-18 — Live transcription-to-voice boundary
+
+- Extended the native Playwright vertical slice from hand/staff interpretation through the real
+  voice service and final frontend evidence state.
+- The generated monophonic five-tone phrase resolves all five notes to notation voice 1 with zero
+  unknowns. The browser asserts the final seven-step state and downstream-stage truthfulness.
+- This remains an orchestration contract over one synthetic phrase, not a musical voice-accuracy
+  benchmark or evidence for contrapuntal identity.

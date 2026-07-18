@@ -192,8 +192,9 @@ npm run test:e2e
 
 Playwright starts both local servers through a platform-aware Python launcher on API port 18080,
 creates real migrated projects, runs FFprobe, FFmpeg, and Basic Pitch/TensorFlow on a generated
-five-note 120 BPM phrase, verifies automatic tempo estimation, quantization, and hand/staff
-interpretation, verifies video metadata, and rejects content that only pretends to be WAV. The live transcription flow requires
+five-note 120 BPM phrase, verifies automatic tempo estimation, quantization, hand/staff
+interpretation, and all-voice-1 notation separation, verifies video metadata, and rejects content
+that only pretends to be WAV. The live transcription flow requires
 `.venv-transcription`. Override the test API port with `PIANOVA_E2E_API_PORT`.
 
 ## Configuration

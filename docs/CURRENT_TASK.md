@@ -6,8 +6,8 @@ Hand and staff interpretation is complete. The next ordered milestone is voice s
 by key detection and enharmonic spelling over the verified interpreted-note boundary. The reviewed
 execution plan for the voice slice is `docs/VOICE_SEPARATION_PLAN.md` (approved 2026-07-18);
 implementation is underway. T1's shared stage-runner extraction, T2's pure voice engine, T3's
-checked persistence contract, T4's backend boundary, and T5's frontend are complete; T6 live
-verification is current.
+checked persistence contract, T4's backend boundary, T5's frontend, and T6 live verification are
+complete; T7's final consistency sweep is current.
 
 ## Status
 
@@ -28,7 +28,7 @@ atomically invalidates downstream state; matching evidence and settings reuse cu
 - ESLint and TypeScript pass.
 - Five Vitest component tests pass.
 - The optimized Next.js production build passes.
-- Three Playwright tests pass against live FastAPI and Next.js servers. The primary audio flow performs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM estimation, quantization, and hand/staff interpretation.
+- Three Playwright tests pass against live FastAPI and Next.js servers. The primary audio flow performs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM estimation, quantization, hand/staff interpretation, and all-voice-1 notation separation.
 
 ## Delivered interpretation boundary
 
@@ -58,9 +58,9 @@ atomically invalidates downstream state; matching evidence and settings reuse cu
 
 ## Current implementation target
 
-Implement T6 in `docs/VOICE_SEPARATION_PLAN.md`: extend the live generated-phrase Playwright flow
-through voice separation and assert the successful all-voice-1 baseline. T7's final consistency
-sweep follows. Locked review decisions:
+Implement T7 in `docs/VOICE_SEPARATION_PLAN.md`: sweep configuration, READMEs, architecture,
+pipeline, data model, research, evaluation, roadmap, task state, handoff, and engineering log for
+consistency, then run the final verification matrix. Locked review decisions:
 
 1. Voice separation is an independent fourth stage with its own endpoint, run ownership, and
    revision (D1).
@@ -74,5 +74,5 @@ Do not begin MusicXML or rendering until voice and spelling boundaries are verif
 
 ## Active blockers
 
-None. The frontend component gate covers action gating, pending state, duplicate-submit
-prevention, failure recovery, counts, and unknown evidence; the live fixture can now exercise it.
+None. The full generated-phrase flow now reaches the persisted voice boundary with five resolved
+voice-1 notes and zero unknowns.
