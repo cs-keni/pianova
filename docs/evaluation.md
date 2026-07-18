@@ -62,6 +62,14 @@ transition-work bound. API and failure tests cover ownership, provenance, reuse 
 re-quantization invalidation, commit rollback, and concurrency conflicts. No broad hand/staff
 accuracy score is reported until a license-reviewed corpus includes trustworthy assignment labels.
 
+The pure voice baseline has deterministic fixtures for monophonic and uniform-chord one-voice
+behavior, sustained notes over moving lines in both staves, suspension chains, forced voices from
+unequal durations, three-stream capacity, unresolved staff, crossing, close separation, and input
+reordering. Every resolved fixture checks the invariant that overlapping notes in one
+`(staff, voice)` share exact onset and duration. Tracked fixture counts are unknown notes,
+two-voice components, capacity-exceeded notes, and crossing components. These fixtures prove the
+contract, not note-level musical voice accuracy; decision scores remain uncalibrated.
+
 The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
 normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
 accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing and runs
@@ -73,6 +81,7 @@ general piano accuracy.
 - The generated transcription fixture proves orchestration and artifact correctness, not musical accuracy.
 - One global straight-grid fixture does not evaluate rubato, swing, tuplets, ornamentation, compound meter, or downbeat inference.
 - The deterministic hand/staff fixture proves bounded orchestration and uncertainty display, not real-world assignment accuracy or voice structure.
+- The deterministic voice fixtures prove conflict handling and stable uncertainty, not contrapuntal identity or engraver preference.
 - Public piano datasets may not represent phone recordings, room acoustics, rubato, or modern Synthesia videos.
 - A single tolerance can hide musically different errors; publish thresholds with every score.
 - Readability requires human judgment alongside automated metrics.

@@ -19,7 +19,7 @@ Pitch detection is not the same as readable notation. Evaluation must separate r
 - beat-synchronous quantization with penalties for tiny rests, excessive ties, and unsupported tuplets;
 - chord grouping within tempo-relative timing windows;
 - hand assignment using pitch range, continuity, overlap, and crossing costs;
-- voice separation using continuity and minimum-complexity objectives;
+- staff-scoped notation-voice separation under explicit overlap and readability invariants;
 - key-aware enharmonic spelling with melodic and harmonic context.
 
 The primary product rule is to prefer readable intent over mechanically preserving every expressive deviation.
@@ -53,6 +53,15 @@ confidence comes from the cost difference between the best complete paths under 
 assignments; close alternatives remain explicitly unknown with one actionable reason. This is an
 inspectable baseline for evaluation, not a claim that piano fingering or engraving always follows
 pitch-contiguous partitions.
+
+The first notation-voice engine is deterministic and forced-only. Exact-onset/exact-duration notes
+collapse into chord nodes; incompatible interval overlaps form a per-staff conflict graph. A graph
+with clique size at most two is two-colored, and the higher-mean-pitch color becomes voice 1. A
+3-clique proves a third simultaneous stream without search, so a deterministic excess node becomes
+`voice_capacity_exceeded` unknown while the remaining graph is colored. This replaces the reviewed
+weighted-DP draft, whose state could not soundly retain sustained-note voice identity. Crossing and
+small pitch separation also remain typed unknowns. The normalized separation value is an
+uncalibrated decision margin until corrected voice labels exist.
 
 ## Datasets and evaluation sources
 

@@ -115,6 +115,24 @@ caller rolls back. Fingerprints, reuse validation, note writes, CAS predicates, 
 errors remain inside each stage service. This keeps the helper reusable for voice separation
 without turning stage-specific policy into hidden framework behavior.
 
+The pure voice engine now exists independently of persistence and HTTP:
+
+```text
+interpreted VoiceNote values
+  -> partition resolved notes by notation staff
+  -> collapse exact-onset/exact-duration chord nodes
+  -> build half-open interval-overlap conflict components
+  -> mark deterministic excess nodes unknown when a 3-clique proves a third stream
+  -> two-color the remaining interval graph
+  -> orient the higher-mean-pitch stream as voice 1
+  -> emit decision scores and typed structural/crossing/close unknowns
+```
+
+`app.symbolic.voices` has no database, filesystem, frontend, subprocess, notation-library, or ML
+dependency. Its hard forced-only rule creates voice 2 only when overlap makes one notation stream
+invalid. The service, run ownership, persistence, endpoint, and capability remain pending later
+tasks, so this engine is not yet a user-visible product capability.
+
 ## External executables
 
 FFmpeg, FFprobe, and MuseScore are configured by optional explicit paths or normal executable discovery. Startup probes use argument lists and bounded timeouts; the cached paths feed the capability registry and media service. Media subprocesses use separate configurable inspection and normalization timeouts.

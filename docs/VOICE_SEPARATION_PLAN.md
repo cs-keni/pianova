@@ -1,6 +1,6 @@
 # Voice Separation Plan
 
-Status: reviewed execution plan, approved 2026-07-18. T1 is complete; T2-T7 remain.
+Status: reviewed execution plan, approved 2026-07-18. T1-T2 are complete; T3-T7 remain.
 
 ## Goal
 
@@ -469,7 +469,7 @@ documentation step.
   behavior change; land as its own commit.
   - Files: `backend/app/services/`, `backend/tests/test_stage_runner.py`
   - Verify: `ruff check . && mypy app && pytest` with existing tests unmodified
-- [ ] **T2 (P1)** — voice engine — implement pure per-staff two-coloring, voice invariant,
+- [x] **T2 (P1)** — voice engine — implement pure per-staff two-coloring, voice invariant,
   structural and margin reasons, diagnostics, and the full deterministic fixture suite.
   - Files: `backend/app/symbolic/`, `backend/tests/test_symbolic_voices.py`
   - Verify: `pytest tests/test_symbolic_voices.py -q`

@@ -5,8 +5,8 @@
 Hand and staff interpretation is complete. The next ordered milestone is voice separation followed
 by key detection and enharmonic spelling over the verified interpreted-note boundary. The reviewed
 execution plan for the voice slice is `docs/VOICE_SEPARATION_PLAN.md` (approved 2026-07-18);
-implementation is underway. T1's shared stage-runner extraction is complete; T2's pure voice
-engine is the current target.
+implementation is underway. T1's shared stage-runner extraction and T2's pure voice engine are
+complete; T3 persistence is the current target.
 
 ## Status
 
@@ -20,7 +20,7 @@ downstream state atomically; matching timing and settings reuse the current succ
 - Native Windows Python 3.11.9, FFprobe 8.0, and FFmpeg 8.0 are available in the runtime used by FastAPI.
 - The isolated worker resolves Basic Pitch 0.4.0, TensorFlow 2.15.0, NumPy 1.26.4, librosa 0.11.0, pretty-midi 0.2.11, and SciPy 1.17.1.
 - Ruff and formatting pass across the backend; strict mypy passes across 35 application source files.
-- 80 pytest tests pass using temporary Alembic-migrated SQLite databases. The 77 tests that
+- 93 pytest tests pass using temporary Alembic-migrated SQLite databases. The 77 tests that
   predated the helper extraction also pass unmodified when the new helper test file is excluded.
 - Alembic upgrades through revision `20260716_0006`; `alembic check` reports no schema drift.
 - ESLint and TypeScript pass.
@@ -42,8 +42,9 @@ downstream state atomically; matching timing and settings reuse the current succ
 
 ## Current implementation target
 
-Implement T2 in `docs/VOICE_SEPARATION_PLAN.md`: the pure deterministic voice engine and its
-fixture suite. T3-T7 then follow sequentially. Locked review decisions:
+Implement T3 in `docs/VOICE_SEPARATION_PLAN.md`: migration `20260718_0007` and the locked project,
+note, enum, bounds, and enumerated tri-state persistence contract. T4-T7 then follow sequentially.
+Locked review decisions:
 
 1. Voice separation is an independent fourth stage with its own endpoint, run ownership, and
    revision (D1).
@@ -57,5 +58,5 @@ Do not begin MusicXML or rendering until voice and spelling boundaries are verif
 
 ## Active blockers
 
-None. The shared stage runner is proven against the unchanged 77-test regression baseline; the
-pure voice engine can proceed without a service-layer dependency.
+None. The stage runner and pure engine are independently verified; persistence can now follow the
+engine's typed output without coupling to the future API boundary.

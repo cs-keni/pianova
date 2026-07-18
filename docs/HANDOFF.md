@@ -6,6 +6,13 @@
   durable RUNNING precommit, success compare-and-swap enforcement, and rollback-following failed
   audit updates. Quantization and interpretation now use it with no contract change.
 - Added isolated stage-runner tests for precommit, CAS winner, CAS loser, and failure marking.
+- Added `app.symbolic.voices`, a pure deterministic per-staff notation-voice engine. It collapses
+  compatible chord notes, builds interval-conflict components, prunes proven third streams with a
+  typed structural unknown, two-colors the remainder, orients voice 1 as the upper stream, and
+  emits uncalibrated decision scores plus typed crossing/close unknowns.
+- Added 13 deterministic voice fixtures covering both staves, monophony, uniform chords,
+  sustained-over-moving lines, suspension chains, unequal-duration same-onset notes, capacity,
+  unresolved staff, crossing, close separation, input-order invariance, and the voice invariant.
 - Added independent passage-level hand and notation-staff interpretation with bounded dynamic programming, competing-path confidence, explicit unknown assignments, typed ambiguity reasons, and deterministic diagnostics.
 - Added Alembic revision `20260716_0006` plus project ownership/revision and note assignment/confidence/reason fields with database checks.
 - Added a hardened interpretation service with fingerprinted/versioned reuse, persisted configuration/diagnostics, ownership and assignment validation, optimistic concurrency, rollback-safe failed runs, and explicit structured errors.
@@ -16,8 +23,8 @@
 
 ## Checks run
 
-- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 35 source files;
-  pytest passed 80 tests. The original 77 tests pass unmodified with the new helper tests excluded.
+- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 36 source files;
+  pytest passed 93 tests. The original 77 tests pass unmodified with the new helper tests excluded.
 - Database: Alembic upgraded through `20260716_0006`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
 - Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, and hand/staff interpretation.
@@ -28,7 +35,8 @@
 The voice-separation milestone now has a reviewed and approved execution plan in
 `docs/VOICE_SEPARATION_PLAN.md` (2026-07-18): typed contract, two-coloring engine, cascade
 invalidation semantics, musical fixtures, and verification matrix are defined. T1's stage-runner
-extraction is complete. Begin at T2 (pure engine), then continue through T3-T7 in plan order. Key
+extraction and T2's pure engine are complete. Begin at T3 (persistence), then continue through
+T4-T7 in plan order. Key
 detection and enharmonic spelling follow voices. Cleaned MIDI, MusicXML,
 rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain deferred in
 that order.
@@ -48,5 +56,5 @@ that order.
 ## Delivery state
 
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
-reviewed voice plan is shipped as `b20fb17`. Voice implementation has started: T1 is complete and
-T2 is the next reviewable slice.
+reviewed voice plan is shipped as `b20fb17`. Voice implementation is in progress: T1 is shipped as
+`14999b2`, T2 is complete in the current slice, and T3 is next.

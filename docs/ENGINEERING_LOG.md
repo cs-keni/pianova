@@ -102,3 +102,15 @@
 - The original 77 backend tests pass unmodified when the new helper test file is excluded. Three
   isolated helper tests raise the baseline to 80 and cover precommit, CAS winner/loser, and failure
   marking.
+
+## 2026-07-18 — Pure notation-voice engine
+
+- Added the independent `app.symbolic.voices` contract with immutable inputs/results and no
+  persistence, frontend, subprocess, notation-library, or ML dependency.
+- The forced-only baseline collapses exact-onset/exact-duration chord nodes, constructs per-staff
+  half-open interval conflicts, removes deterministic excess nodes when a 3-clique proves a third
+  stream, and two-colors the remainder. Voice 1 is the upper-mean-pitch stream; unknown staff,
+  capacity, crossing, and close alternatives are successful typed outputs.
+- `voice_confidence` is explicitly an uncalibrated normalized separation margin. Thirteen focused
+  fixtures cover all planned engine branches, input-order stability, and the resolved voice
+  invariant, raising the backend baseline to 93 tests and 36 strict-mypy application sources.

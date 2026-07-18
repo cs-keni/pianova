@@ -13,7 +13,8 @@ The current product implements secure ingestion, typed media preparation, raw Ba
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
-| Voices and pitch spelling | Interpreted notes | Voice trajectories, key, spelled score events | Ambiguous voice, key, or spelling | Not implemented |
+| Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, overlap capacity, concurrent update | Pure engine implemented; service pending |
+| Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Ambiguous key or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
 | User correction | Note events and score state | Revised symbolic score and artifacts | Invalid edits or regeneration failure | Not implemented |
@@ -77,6 +78,21 @@ diagnostics, confidence, and ambiguity invariants pass. Success atomically write
 the current interpretation run, and an optimistic revision. Re-quantization invalidates this state
 only when timing is genuinely recomputed. `InterpretationService` uses the same `StageRunner`
 transaction shell while retaining all interpretation-specific validation and persistence policy.
+
+## Voice engine contract (service pending)
+
+`app.symbolic.voices.separate_voices` consumes immutable notes with exact symbolic onset/duration
+and independent staff evidence. Staff-unknown notes succeed as `unresolved_staff` unknowns.
+Resolved notes are collapsed into compatible chord nodes; incompatible half-open interval overlaps
+form conflict components. Components requiring at most two streams are deterministically
+two-colored, with voice 1 assigned to the higher-mean-pitch stream. A proven third concurrent
+stream is removed by latest-onset, highest-pitch, then ID priority and reported as
+`voice_capacity_exceeded`; remaining notes are still colored.
+
+Crossing and sub-threshold separation remain successful typed unknowns. `voice_confidence` is a
+normalized stream-separation decision score, not a calibrated probability. Persistence, cascade
+invalidation, reuse, and `POST /separate-voices` remain pending T3-T4 and are not advertised as an
+available capability yet.
 
 ## Generated artifacts
 

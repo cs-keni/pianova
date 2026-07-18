@@ -8,13 +8,16 @@ Pianova is built as verified vertical slices. A milestone is complete only when 
 4. **Basic transcription: complete.** Isolated Basic Pitch/TensorFlow worker, dependency-backed capability, typed raw note events, model/config provenance, note-event JSON, raw MIDI, retry-safe cleanup, and live browser coverage.
 5. **Tempo and readable quantization: complete.** Conservative global tempo estimation, BPM recovery, simple meter, explicit measure origin, chord grouping, exact-fraction straight-note quantization, diagnostics, concurrency-safe persistence, and live Basic Pitch coverage.
 6. **Hands and staves: complete.** Independent passage-level assignment, competing-path confidence, explicit unknown reasons, concurrency-safe persistence/invalidation, bounded preview, and real browser coverage.
-7. **Voices and key-aware spelling.** Separate voice trajectories, tonal context, enharmonic spelling, and measured uncertainty over the stable hand/staff boundary.
-8. **MusicXML and optional rendering.** Editable MusicXML first; MuseScore PDF/SVG degrades independently.
-9. **Inspection and correction.** Note table, piano roll, synchronized playback, edits, and artifact regeneration.
-10. **Evaluation.** Reproducible benchmark corpus, transcription metrics, notation-readability review, and regression reports.
-11. **Synthesia extraction.** Visual note detection only after the audio pipeline is stable.
-12. **Audio-video fusion.** Confidence-aware multimodal note evidence and conflict resolution.
-13. **Model improvements.** Custom training or fine-tuning only when measured failure modes justify it.
+7. **Voice separation: in progress.** Shared orchestration and the pure deterministic per-staff
+   conflict-graph engine are complete; persistence, API, cascade invalidation, UI, and live coverage
+   remain.
+8. **Key-aware spelling.** Infer tonal context and enharmonic spelling over the verified voice boundary.
+9. **MusicXML and optional rendering.** Editable MusicXML first; MuseScore PDF/SVG degrades independently.
+10. **Inspection and correction.** Note table, piano roll, synchronized playback, edits, and artifact regeneration.
+11. **Evaluation.** Reproducible benchmark corpus, transcription metrics, notation-readability review, and regression reports.
+12. **Synthesia extraction.** Visual note detection only after the audio pipeline is stable.
+13. **Audio-video fusion.** Confidence-aware multimodal note evidence and conflict resolution.
+14. **Model improvements.** Custom training or fine-tuning only when measured failure modes justify it.
 
 Cloud deployment, authentication, payments, mobile apps, distributed queues, and collaborative editing remain outside the local-first MVP.
 
