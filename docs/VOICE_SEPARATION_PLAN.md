@@ -1,6 +1,6 @@
 # Voice Separation Plan
 
-Status: reviewed execution plan, approved 2026-07-18. T1-T2 are complete; T3-T7 remain.
+Status: reviewed execution plan, approved 2026-07-18. T1-T3 are complete; T4-T7 remain.
 
 ## Goal
 
@@ -473,7 +473,7 @@ documentation step.
   structural and margin reasons, diagnostics, and the full deterministic fixture suite.
   - Files: `backend/app/symbolic/`, `backend/tests/test_symbolic_voices.py`
   - Verify: `pytest tests/test_symbolic_voices.py -q`
-- [ ] **T3 (P1)** — persistence — add voice fields, project ownership/revision, and checked
+- [x] **T3 (P1)** — persistence — add voice fields, project ownership/revision, and checked
   migration `20260718_0007` with the enumerated tri-state check.
   - Files: `backend/app/models/`, `backend/alembic/versions/`
   - Verify: `alembic upgrade head && alembic check`

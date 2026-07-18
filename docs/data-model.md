@@ -1,6 +1,6 @@
 # Data Model Reference
 
-Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state; revision `20260716_0006` adds hand/staff state, confidence, ambiguity, ownership, and revision constraints. SQLAlchemy persistence models are separate from Pydantic API schemas.
+Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state; revision `20260716_0006` adds hand/staff state, confidence, ambiguity, ownership, and revision constraints; revision `20260718_0007` adds the checked notation-voice state and project ownership/revision fields. SQLAlchemy persistence models are separate from Pydantic API schemas.
 
 ## Project
 
@@ -26,6 +26,8 @@ Alembic revision `20260714_0001` creates the initial tables; revision `20260714_
 | `quantization_revision` | integer | Non-negative optimistic-concurrency counter |
 | `current_interpretation_run_id` | integer, nullable | Successful ProcessingRun that owns current hand/staff state |
 | `interpretation_revision` | integer | Non-negative optimistic-concurrency and invalidation counter |
+| `current_voice_run_id` | integer, nullable | Successful ProcessingRun that owns current notation-voice state |
+| `voice_revision` | integer | Non-negative optimistic-concurrency and invalidation counter |
 | `created_at`, `updated_at` | timestamps | UTC lifecycle timestamps |
 
 ## Artifact
@@ -52,7 +54,21 @@ Note events preserve performed timing separately from later notation:
 - `staff`: treble, bass, or unknown; independent from hand.
 - `hand_confidence`, `staff_confidence`: nullable bounded evidence margins in `[0, 1]`.
 - `hand_ambiguity_reason`, `staff_ambiguity_reason`: nullable typed primary reason; required by service invariants for unknown assignments and absent for resolved assignments.
+- `voice`: nullable staff-scoped notation voice, checked `>= 1` when present. Version 1 of the
+  engine emits only voice 1 or 2; the schema admits future higher voice numbers without migration.
+- `voice_confidence`: nullable normalized decision score in `[0, 1]`; it is not a calibrated
+  probability.
+- `voice_ambiguity_reason`: nullable typed reason: `unresolved_staff`,
+  `voice_capacity_exceeded`, `crossing`, or `close_alternative`.
 - `source`: audio, video, audio-and-video, or manual.
+
+The three voice fields have exactly three valid database states:
+
+- unprocessed: voice, score, and reason are all null;
+- resolved: voice and score are present, reason is null;
+- unknown: voice is null, score and reason are present.
+
+All other combinations fail the named `ck_note_events_voice_state` constraint.
 
 This split lets Pianova simplify rubato into readable rhythm without destroying the model's original evidence.
 
@@ -70,6 +86,10 @@ Interpretation also keeps the ML columns empty. Its JSON records processor/runti
 current quantization ownership, input fingerprint, scoring settings, work bounds, and diagnostics.
 The project current-run pointer plus interpretation revision identify the owner of persisted
 hand/staff state. Re-quantization clears that pointer and all assignments atomically.
+
+Voice persistence fields exist, but no `voice_separation` ProcessingRun is created until the T4
+service boundary lands. That service will own provenance, reuse validation, cascade invalidation,
+and the project current-run pointer.
 
 ## API schemas
 

@@ -130,8 +130,10 @@ interpreted VoiceNote values
 
 `app.symbolic.voices` has no database, filesystem, frontend, subprocess, notation-library, or ML
 dependency. Its hard forced-only rule creates voice 2 only when overlap makes one notation stream
-invalid. The service, run ownership, persistence, endpoint, and capability remain pending later
-tasks, so this engine is not yet a user-visible product capability.
+invalid. Alembic revision `20260718_0007` now provides nullable project run ownership, a
+non-negative voice revision, and exact note-level unprocessed/resolved/unknown storage states.
+The service, endpoint, and capability remain pending T4, so this engine is not yet a user-visible
+product capability.
 
 ## External executables
 

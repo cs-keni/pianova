@@ -92,7 +92,9 @@ stream is removed by latest-onset, highest-pitch, then ID priority and reported 
 Crossing and sub-threshold separation remain successful typed unknowns. `voice_confidence` is a
 normalized stream-separation decision score, not a calibrated probability. Persistence, cascade
 invalidation, reuse, and `POST /separate-voices` remain pending T3-T4 and are not advertised as an
-available capability yet.
+available capability yet. Revision `20260718_0007` supplies the checked project/note storage
+contract the service will own: nullable current-run pointer, non-negative optimistic revision,
+`voice >= 1`, bounded score, typed reason, and exactly three valid field combinations.
 
 ## Generated artifacts
 

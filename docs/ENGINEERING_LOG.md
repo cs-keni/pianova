@@ -114,3 +114,14 @@
 - `voice_confidence` is explicitly an uncalibrated normalized separation margin. Thirteen focused
   fixtures cover all planned engine branches, input-order stability, and the resolved voice
   invariant, raising the backend baseline to 93 tests and 36 strict-mypy application sources.
+
+## 2026-07-18 — Checked notation-voice persistence
+
+- Alembic revision `20260718_0007` adds `current_voice_run_id`, non-negative `voice_revision`,
+  nullable note voice with `voice >= 1`, bounded decision score, and typed ambiguity reason.
+- The named voice-state check enumerates exactly unprocessed `(NULL, NULL, NULL)`, resolved
+  `(voice, score, NULL)`, and unknown `(NULL, score, reason)`. The two-voice cap stays in engine
+  version 1 rather than the schema so later versions can add voices without another migration.
+- Ten migrated-SQLite tests prove all allowed states, all other presence combinations, numeric
+  bounds, and the revision bound. Alembic upgrades through `20260718_0007` with no model drift;
+  the backend baseline is 103 tests.

@@ -2,7 +2,17 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -36,6 +46,13 @@ class AssignmentAmbiguityReason(enum.StrEnum):
     WIDE_CHORD = "wide_chord"
     CROSSING = "crossing"
     INSUFFICIENT_CONTEXT = "insufficient_context"
+
+
+class VoiceAmbiguityReason(enum.StrEnum):
+    UNRESOLVED_STAFF = "unresolved_staff"
+    VOICE_CAPACITY_EXCEEDED = "voice_capacity_exceeded"
+    CROSSING = "crossing"
+    CLOSE_ALTERNATIVE = "close_alternative"
 
 
 class DetectionSource(enum.StrEnum):
@@ -80,6 +97,12 @@ class MediaStreamType(enum.StrEnum):
 
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (
+        CheckConstraint(
+            "voice_revision >= 0",
+            name="ck_projects_voice_revision_nonnegative",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(120))
@@ -110,6 +133,8 @@ class Project(Base):
     quantization_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     current_interpretation_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     interpretation_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    current_voice_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    voice_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -134,6 +159,25 @@ class Project(Base):
 
 class NoteEvent(Base):
     __tablename__ = "note_events"
+    __table_args__ = (
+        CheckConstraint(
+            "voice IS NULL OR voice >= 1",
+            name="ck_note_events_voice_positive",
+        ),
+        CheckConstraint(
+            "voice_confidence IS NULL OR (voice_confidence >= 0 AND voice_confidence <= 1)",
+            name="ck_note_events_voice_confidence",
+        ),
+        CheckConstraint(
+            "(voice IS NULL AND voice_confidence IS NULL "
+            "AND voice_ambiguity_reason IS NULL) OR "
+            "(voice IS NOT NULL AND voice_confidence IS NOT NULL "
+            "AND voice_ambiguity_reason IS NULL) OR "
+            "(voice IS NULL AND voice_confidence IS NOT NULL "
+            "AND voice_ambiguity_reason IS NOT NULL)",
+            name="ck_note_events_voice_state",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
@@ -157,6 +201,11 @@ class NoteEvent(Base):
     )
     staff_ambiguity_reason: Mapped[AssignmentAmbiguityReason | None] = mapped_column(
         Enum(AssignmentAmbiguityReason, native_enum=False), nullable=True
+    )
+    voice: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    voice_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    voice_ambiguity_reason: Mapped[VoiceAmbiguityReason | None] = mapped_column(
+        Enum(VoiceAmbiguityReason, native_enum=False), nullable=True
     )
     source: Mapped[DetectionSource] = mapped_column(
         Enum(DetectionSource, native_enum=False), default=DetectionSource.AUDIO
