@@ -39,5 +39,7 @@ deferred in that order.
 
 ## Delivery state
 
-The hand and staff interpretation milestone is implemented, fully verified, documented, and ready
-for final diff review and consolidation of WIP commits since `a2a4bd1`.
+The hand and staff interpretation milestone is implemented, fully verified, documented, and
+shipped to `origin/main` as `9464c01`. The six local WIP checkpoints after `a2a4bd1` were
+consolidated into that clean milestone commit before the fast-forward push. The next session can
+start by shaping the voice-separation boundary described in `docs/CURRENT_TASK.md`.
