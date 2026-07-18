@@ -3,8 +3,9 @@
 ## Active milestone
 
 Hand and staff interpretation is complete. The next ordered milestone is voice separation followed
-by key detection and enharmonic spelling over the verified interpreted-note boundary. A reviewed
-execution plan must define that slice before implementation begins.
+by key detection and enharmonic spelling over the verified interpreted-note boundary. The reviewed
+execution plan for the voice slice is `docs/VOICE_SEPARATION_PLAN.md` (approved 2026-07-18);
+implementation has not started.
 
 ## Status
 
@@ -39,16 +40,19 @@ downstream state atomically; matching timing and settings reuse the current succ
 
 ## Current implementation target
 
-Shape and review the next interpretation slice before coding:
+Implement `docs/VOICE_SEPARATION_PLAN.md` in its task order (T1 helper extraction and T2 pure
+engine may run as parallel lanes; T3-T7 follow sequentially). Locked review decisions:
 
-1. Define the typed voice-separation contract and evaluation evidence.
-2. Decide how voices interact with independent hand/staff assignments and explicit unknown states.
-3. Define key detection and enharmonic spelling as a subsequent boundary unless review proves they must be coupled.
-4. Preserve current raw timing, quantization, assignment provenance, and invalidation semantics.
+1. Voice separation is an independent fourth stage with its own endpoint, run ownership, and
+   revision (D1).
+2. A shared `stage_runner` orchestration helper is extracted first as a zero-behavior-change
+   commit gated on the unmodified existing test suite (D2).
+3. The engine is deterministic per-staff conflict-graph two-coloring of notation voices under a
+   hard forced-only rule; no weighted DP (D3, adopted from the cross-model review).
+4. Key detection and enharmonic spelling remain the subsequent boundary; no coupling was proven.
 
 Do not begin MusicXML or rendering until voice and spelling boundaries are verified.
 
 ## Active blockers
 
-None for the delivered hand/staff milestone. The next milestone needs a reviewed plan and measurable
-musical fixtures before implementation.
+None. The voice-separation plan is reviewed and approved; implementation can start at T1/T2.

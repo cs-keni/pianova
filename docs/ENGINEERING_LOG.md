@@ -74,6 +74,13 @@
 - The live fixture uses five distinct piano tones whose attacks are adjusted for Basic Pitch analysis-frame rounding. The real worker must emit a pulse accepted within 119.5-120.5 BPM; this is an integration contract, not a musical benchmark.
 - Verification baseline is now 62 backend tests, five component tests, a clean production build, and three live Chromium flows.
 
+## 2026-07-18 — Voice separation plan review
+
+- The voice-separation milestone was shaped and reviewed via gstack plan-eng-review; the approved plan is `docs/VOICE_SEPARATION_PLAN.md`. Three user decisions were locked: independent fourth stage (D1), preparatory `stage_runner` helper extraction with the unmodified existing suite as its regression gate (D2), and a deterministic two-coloring voice engine (D3).
+- The originally drafted weighted-DP voice engine was found unsound during the Codex outside-voice pass: its per-onset split state could not legally track which sustained notes belonged to which voice. Because `first.md` makes the second voice strictly overlap-forced, the problem reduces to interval-conflict two-coloring per staff, where a 3-clique structurally proves `voice_capacity_exceeded`. Fourteen of sixteen outside-voice findings were folded; the unknowns-as-success doctrine and the voice-before-cleaned-MIDI ordering were kept with recorded rationale.
+- Durable contract points: voice is a staff-scoped notation fact (nullable integer, checked `voice >= 1`, cap in the engine); the tri-state voice/score/reason database check enumerates its three valid states exactly; cascaded revision increments must be SQL-relative to avoid lost updates, with interleaving tests planned.
+- Voice separation needs no key or spelling evidence, so key detection and enharmonic spelling remain the next boundary after voices.
+
 ## 2026-07-17 — Independent hand and staff interpretation
 
 - Alembic revision `20260716_0006` adds current interpretation ownership/revision plus independent staff, bounded confidence, and typed ambiguity fields on note events.

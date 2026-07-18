@@ -20,10 +20,13 @@
 
 ## Remaining work
 
-The next milestone is voice separation, followed by key detection and enharmonic spelling. It needs
-a reviewed typed contract and musical evaluation fixtures before implementation. Cleaned MIDI,
-MusicXML, rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain
-deferred in that order.
+The voice-separation milestone now has a reviewed and approved execution plan in
+`docs/VOICE_SEPARATION_PLAN.md` (2026-07-18): typed contract, two-coloring engine, cascade
+invalidation semantics, musical fixtures, and verification matrix are defined; implementation has
+not started. Begin at T1 (stage_runner extraction) and T2 (pure engine), which may run as
+parallel lanes. Key detection and enharmonic spelling follow voices. Cleaned MIDI, MusicXML,
+rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain deferred in
+that order.
 
 ## Known risks
 
