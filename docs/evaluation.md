@@ -56,15 +56,23 @@ cover chord grouping, exact 120 BPM acceptance, ambiguity, overrides, pickups, d
 same-pitch repair, and dense-rhythm rejection; API tests cover persistence, reuse/recompute,
 validation, rollback, and optimistic-concurrency failure.
 
+The hand/staff baseline has deterministic fixtures for obvious two-hand passages, ambiguity,
+wide chords, crossing pressure, independent cross-staff placement, input-order stability, and the
+transition-work bound. API and failure tests cover ownership, provenance, reuse repair, atomic
+re-quantization invalidation, commit rollback, and concurrency conflicts. No broad hand/staff
+accuracy score is reported until a license-reviewed corpus includes trustworthy assignment labels.
+
 The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
 normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
-accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing. This proves
-the real transcription-to-estimator boundary, not general piano accuracy.
+accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing and runs
+hand/staff interpretation. This proves the real transcription-to-interpretation boundary, not
+general piano accuracy.
 
 ## Known limitations
 
 - The generated transcription fixture proves orchestration and artifact correctness, not musical accuracy.
 - One global straight-grid fixture does not evaluate rubato, swing, tuplets, ornamentation, compound meter, or downbeat inference.
+- The deterministic hand/staff fixture proves bounded orchestration and uncertainty display, not real-world assignment accuracy or voice structure.
 - Public piano datasets may not represent phone recordings, room acoustics, rubato, or modern Synthesia videos.
 - A single tolerance can hide musically different errors; publish thresholds with every score.
 - Readability requires human judgment alongside automated metrics.

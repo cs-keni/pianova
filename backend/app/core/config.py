@@ -54,6 +54,29 @@ class Settings(BaseSettings):
     quantization_same_pitch_repair_tolerance_beats: float = Field(default=0.5, ge=0, le=4)
     quantization_preview_note_limit: int = Field(default=50, ge=1, le=500)
     quantization_algorithm_version: str = "1.0.0"
+    interpretation_left_center_pitch: float = Field(default=48.0, ge=0, le=127)
+    interpretation_right_center_pitch: float = Field(default=72.0, ge=0, le=127)
+    interpretation_bass_center_pitch: float = Field(default=48.0, ge=0, le=127)
+    interpretation_treble_center_pitch: float = Field(default=72.0, ge=0, le=127)
+    interpretation_pitch_weight: float = Field(default=1.0, ge=0, le=100)
+    interpretation_span_weight: float = Field(default=0.25, ge=0, le=100)
+    interpretation_movement_weight: float = Field(default=0.35, ge=0, le=100)
+    interpretation_appearance_weight: float = Field(default=0.15, ge=0, le=100)
+    interpretation_split_movement_weight: float = Field(default=0.08, ge=0, le=100)
+    interpretation_crossing_weight: float = Field(default=0.5, ge=0, le=100)
+    interpretation_compact_split_weight: float = Field(default=0.1, ge=0, le=100)
+    interpretation_wide_single_partition_weight: float = Field(default=0.5, ge=0, le=100)
+    interpretation_comfortable_hand_span: int = Field(default=12, ge=1, le=48)
+    interpretation_compact_chord_span: int = Field(default=7, ge=0, le=48)
+    interpretation_middle_register_low: int = Field(default=55, ge=0, le=127)
+    interpretation_middle_register_high: int = Field(default=65, ge=0, le=127)
+    interpretation_ambiguity_margin: float = Field(default=0.25, gt=0, le=100)
+    interpretation_high_confidence_margin: float = Field(default=1.0, gt=0, le=100)
+    interpretation_maximum_transition_evaluations: int = Field(
+        default=2_000_000, ge=1, le=100_000_000
+    )
+    interpretation_preview_note_limit: int = Field(default=50, ge=1, le=500)
+    interpretation_algorithm_version: str = "1.0.0"
 
     @field_validator("workspace_dir", mode="before")
     @classmethod
@@ -75,6 +98,12 @@ class Settings(BaseSettings):
             raise ValueError("transcription_maximum_frequency_hz must exceed the minimum frequency")
         if self.quantization_maximum_bpm <= self.quantization_minimum_bpm:
             raise ValueError("quantization_maximum_bpm must exceed quantization_minimum_bpm")
+        if self.interpretation_middle_register_high < self.interpretation_middle_register_low:
+            raise ValueError("interpretation middle-register bounds are reversed")
+        if self.interpretation_high_confidence_margin < self.interpretation_ambiguity_margin:
+            raise ValueError(
+                "interpretation_high_confidence_margin must meet or exceed ambiguity margin"
+            )
         return self
 
     @property

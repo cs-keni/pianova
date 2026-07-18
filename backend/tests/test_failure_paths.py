@@ -14,15 +14,52 @@ from app.core.dependencies import DependencyStatus
 from app.models.entities import (
     Artifact,
     ArtifactKind,
+    Hand,
     NoteEvent,
     ProcessingRun,
     ProcessingStatus,
     Project,
+    Staff,
 )
 
 
 def project_directory(settings: Settings, project_id: str) -> Path:
     return settings.workspace_dir / "projects" / project_id
+
+
+def create_quantized_note_project(
+    client: TestClient,
+    *,
+    title: str,
+) -> dict[str, object]:
+    project = client.post("/api/projects", json={"title": title}).json()
+    with client.app.state.session_factory() as session:
+        session.add(
+            Artifact(
+                project_id=project["id"],
+                kind=ArtifactKind.NOTE_EVENTS,
+                relative_path=f"projects/{project['id']}/note-events-test.json",
+                size_bytes=1,
+            )
+        )
+        session.add_all(
+            NoteEvent(
+                project_id=project["id"],
+                pitch=pitch,
+                velocity=90,
+                raw_start_seconds=start,
+                raw_end_seconds=start + 0.4,
+                confidence=0.9,
+            )
+            for pitch, start in [(48, 0.0), (72, 0.0), (50, 0.5), (74, 0.5)]
+        )
+        session.commit()
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    assert response.status_code == 200
+    return project
 
 
 def create_normalized_project(
@@ -833,3 +870,147 @@ def test_quantization_conflict_rolls_back_symbolic_changes(
                 select(NoteEvent).where(NoteEvent.project_id == project["id"])
             )
         )
+
+
+def test_interpretation_commit_failure_preserves_previous_result(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = create_quantized_note_project(client, title="Interpretation rollback")
+    first = client.post(f"/api/projects/{project['id']}/interpret")
+    assert first.status_code == 200
+    first_body = first.json()
+    original_commit = Session.commit
+    commit_count = 0
+
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+
+    def fail_success_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated interpretation commit failure")
+        original_commit(session)
+
+    monkeypatch.setattr(Session, "commit", fail_success_commit)
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "interpretation_failed"
+    with client.app.state.session_factory() as session:
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        assert stored_project.current_interpretation_run_id == first_body["provenance"]["run_id"]
+        assert stored_project.interpretation_revision == 2
+        notes = tuple(
+            session.scalars(
+                select(NoteEvent)
+                .where(NoteEvent.project_id == project["id"])
+                .order_by(NoteEvent.id)
+            )
+        )
+        assert all(note.hand is not Hand.UNKNOWN for note in notes)
+        assert all(note.staff is not Staff.UNKNOWN for note in notes)
+        assert all(note.hand_confidence is not None for note in notes)
+        latest_run = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "interpretation",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest_run is not None
+        assert latest_run.status is ProcessingStatus.FAILED
+
+
+def test_interpretation_conflict_rolls_back_assignments(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = create_quantized_note_project(client, title="Interpretation conflict")
+    from app.services import interpretation as interpretation_module
+
+    original_interpret_notes = interpretation_module.interpret_notes
+
+    def concurrent_interpretation(*args: object, **kwargs: object) -> object:
+        result = original_interpret_notes(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            stored.interpretation_revision += 1
+            other_session.commit()
+        return result
+
+    monkeypatch.setattr(
+        interpretation_module,
+        "interpret_notes",
+        concurrent_interpretation,
+    )
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "interpretation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_interpretation_run_id is None
+        assert stored.interpretation_revision == 2
+        notes = tuple(
+            session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        )
+        assert all(note.hand is Hand.UNKNOWN for note in notes)
+        assert all(note.staff is Staff.UNKNOWN for note in notes)
+        assert all(note.hand_confidence is None for note in notes)
+        latest_run = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "interpretation",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest_run is not None
+        assert latest_run.status is ProcessingStatus.FAILED
+
+
+def test_requantization_commit_failure_preserves_interpretation(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project = create_quantized_note_project(client, title="Invalidation rollback")
+    interpreted = client.post(f"/api/projects/{project['id']}/interpret")
+    assert interpreted.status_code == 200
+    interpretation_run_id = interpreted.json()["provenance"]["run_id"]
+    original_commit = Session.commit
+    commit_count = 0
+
+    def fail_success_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated requantization commit failure")
+        original_commit(session)
+
+    monkeypatch.setattr(Session, "commit", fail_success_commit)
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 90},
+    )
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "quantization_failed"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_interpretation_run_id == interpretation_run_id
+        assert stored.interpretation_revision == 2
+        notes = tuple(
+            session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        )
+        assert all(note.hand is not Hand.UNKNOWN for note in notes)
+        assert all(note.staff is not Staff.UNKNOWN for note in notes)
+        assert all(note.hand_confidence is not None for note in notes)
+        assert all(note.staff_confidence is not None for note in notes)

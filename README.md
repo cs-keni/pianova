@@ -2,7 +2,7 @@
 
 > Hear it. See it. Play it.
 
-Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, and converts those events into a readable global tempo and straight-note beat grid. Hands, voices, and score generation remain explicitly unfinished.
+Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, and assigns independent hands and notation staves with explicit uncertainty. Voices, pitch spelling, and score generation remain explicitly unfinished.
 
 ## What works now
 
@@ -14,11 +14,12 @@ Pianova is a local-first, AI-assisted piano transcription application. The curre
 - Basic Pitch 0.4.0 inference in an isolated Python 3.11/TensorFlow 2.15 worker environment.
 - Typed raw note-event persistence with confidence and pitch-bend evidence, model provenance, note-event JSON, and raw MIDI artifacts.
 - Deterministic note-onset tempo estimation, simple `2/4`, `3/4`, or `4/4` meter, explicit BPM/origin overrides, exact internal fractions, chord grouping, and readable straight-note quantization without changing raw timing.
-- A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, and bounded raw/symbolic note previews.
+- Bounded passage-level left/right hand and bass/treble staff assignment with independent confidence, explicit unknown states, typed ambiguity reasons, fingerprinted reuse, and concurrency-safe persistence.
+- A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, and bounded raw, symbolic-timing, and interpretation previews.
 - Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
 - Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
-Not implemented: hand/staff/voice assignment, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
+Not implemented: voice separation, key-aware pitch spelling, cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
 
 ## Screenshots
 
@@ -33,6 +34,7 @@ Browser (Next.js)
   |  POST /api/projects/{id}/process-media
   |  POST /api/projects/{id}/transcribe
   |  POST /api/projects/{id}/quantize
+  |  POST /api/projects/{id}/interpret
   v
 FastAPI
   +-- typed settings, errors, capabilities, dependency probes
@@ -47,6 +49,10 @@ FastAPI
                                +-- global BPM + simple meter
                                +-- chord groups + quantized beats
                                +-- fit diagnostics + provenance
+  +-- interpretation -----> persisted quantized notes
+                              +-- independent hands + staves
+                              +-- confidence + ambiguity reasons
+                              +-- bounded DP diagnostics + provenance
 ```
 
 FastAPI owns persistence and local artifacts. The frontend consumes typed HTTP contracts and never imports backend code. Later processing stages will consume typed musical models without depending on the UI. See [architecture](docs/architecture.md), [pipeline](docs/pipeline.md), and [data model](docs/data-model.md).
@@ -152,10 +158,11 @@ Open `http://localhost:3000`. API documentation is at `http://127.0.0.1:18080/do
 ## Verify the implemented slice
 
 Create a project, upload a supported piano file, select **Inspect and prepare audio**, select
-**Transcribe piano**, then select **Estimate tempo and quantize**. Success means the page reports
-`Readable timing ready`, shows fit diagnostics and a symbolic preview, and preserves the normalized
-WAV, note-event JSON, raw MIDI, and original raw note timing beneath the project workspace/database.
-If automatic tempo is ambiguous, enter a BPM override and retry.
+**Transcribe piano**, select **Estimate tempo and quantize**, then select **Assign hands and
+staves**. Success means the page reports `Hand and staff interpretation ready`, shows resolved and
+unknown counts plus a bounded evidence preview, and preserves the normalized WAV, note-event JSON,
+raw MIDI, original timing, readable timing, and assignment provenance. If automatic tempo is
+ambiguous, enter a BPM override and retry.
 
 Run backend checks from `backend/`:
 
@@ -178,8 +185,8 @@ npm run test:e2e
 
 Playwright starts both local servers through a platform-aware Python launcher on API port 18080,
 creates real migrated projects, runs FFprobe, FFmpeg, and Basic Pitch/TensorFlow on a generated
-five-note 120 BPM phrase, verifies automatic tempo estimation and quantization, verifies video
-metadata, and rejects content that only pretends to be WAV. The live transcription flow requires
+five-note 120 BPM phrase, verifies automatic tempo estimation, quantization, and hand/staff
+interpretation, verifies video metadata, and rejects content that only pretends to be WAV. The live transcription flow requires
 `.venv-transcription`. Override the test API port with `PIANOVA_E2E_API_PORT`.
 
 ## Configuration
@@ -187,7 +194,7 @@ metadata, and rejects content that only pretends to be WAV. The live transcripti
 All backend variables use the `PIANOVA_` prefix. Settings cover database/workspace paths,
 FFmpeg/FFprobe/MuseScore, the isolated transcription Python executable, upload limits, subprocess
 timeouts, normalization format, Basic Pitch thresholds/frequency range, quantization gates and
-grid behavior, logging, and local CORS origins. Backend defaults are in [.env.example](.env.example).
+grid behavior, interpretation scoring/work bounds, logging, and local CORS origins. Backend defaults are in [.env.example](.env.example).
 `NEXT_PUBLIC_PIANOVA_API_URL` belongs in `frontend/.env.local`; see
 [frontend/.env.example](frontend/.env.example).
 
@@ -203,6 +210,7 @@ MP3, WAV, M4A, MP4, and MOV are accepted. Pianova does not trust the extension a
 - Audio shorter than 0.05 seconds is rejected before Basic Pitch because the model cannot form a usable analysis frame.
 - Automatic tempo is intentionally conservative: sparse, weakly aligned, or half/double-tempo evidence returns `tempo_ambiguous` until the user supplies BPM.
 - Quantization currently assumes one global quarter-note BPM and straight sixteenth-note resolution; variable tempo, compound meter, tuplets, swing, downbeat inference, and partial quantization are deferred.
+- Hand/staff interpretation is a deterministic pitch-and-continuity baseline. Ambiguous notes remain `unknown`; it does not yet separate voices or infer key-aware spelling.
 - MuseScore absence never blocks project creation or future MusicXML export.
 - Projects cannot yet be listed, renamed, deleted, or reprocessed through the UI.
 - Upload progress is represented as a pending state, not a byte-level progress bar.
@@ -235,8 +243,8 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 
 ## Roadmap
 
-Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, and readable
-global timing are complete. Next: hands/staves/voices, then MusicXML, optional score rendering,
+Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, readable
+global timing, and independent hand/staff interpretation are complete. Next: voices and spelling, then MusicXML, optional score rendering,
 correction tools, evaluation, and finally Synthesia analysis. See the
 [milestone roadmap](docs/roadmap.md).
 

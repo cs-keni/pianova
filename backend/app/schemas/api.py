@@ -5,10 +5,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.core.capabilities import Capability
 from app.models.entities import (
     ArtifactKind,
+    AssignmentAmbiguityReason,
     DetectionSource,
+    Hand,
     MediaStreamType,
     ProjectStatus,
     SettingSource,
+    Staff,
     TempoSource,
 )
 
@@ -78,6 +81,8 @@ class ProjectResponse(BaseModel):
     meter_source: SettingSource | None
     current_quantization_run_id: int | None
     quantization_revision: int
+    current_interpretation_run_id: int | None
+    interpretation_revision: int
     media_streams: list[MediaStreamResponse]
     created_at: datetime
     updated_at: datetime
@@ -195,4 +200,49 @@ class QuantizationResponse(BaseModel):
     preview_notes: list[QuantizedNoteResponse]
     diagnostics: TempoEstimateDiagnosticsResponse
     provenance: QuantizationProvenanceResponse
+    reused: bool
+
+
+class InterpretedNoteResponse(BaseModel):
+    id: int
+    pitch: int
+    symbolic_start_beats: float
+    symbolic_duration_beats: float
+    chord_group: int
+    hand: Hand
+    staff: Staff
+    hand_confidence: float = Field(ge=0, le=1)
+    staff_confidence: float = Field(ge=0, le=1)
+    hand_ambiguity_reason: AssignmentAmbiguityReason | None
+    staff_ambiguity_reason: AssignmentAmbiguityReason | None
+
+
+class InterpretationDiagnosticsResponse(BaseModel):
+    chord_group_count: int
+    candidate_state_count: int
+    transition_evaluations: int
+    resolved_hand_count: int
+    unknown_hand_count: int
+    resolved_staff_count: int
+    unknown_staff_count: int
+    wide_chord_count: int
+    crossing_pressure_count: int
+
+
+class InterpretationProvenanceResponse(BaseModel):
+    run_id: int
+    processor_name: str
+    processor_version: str
+    runtime: str
+    quantization_run_id: int
+    input_fingerprint: str
+    configuration: dict[str, object]
+
+
+class InterpretationResponse(BaseModel):
+    project: ProjectResponse
+    note_count: int
+    preview_notes: list[InterpretedNoteResponse]
+    diagnostics: InterpretationDiagnosticsResponse
+    provenance: InterpretationProvenanceResponse
     reused: bool

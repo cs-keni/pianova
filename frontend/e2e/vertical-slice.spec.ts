@@ -84,11 +84,12 @@ function tinyMp4(): Buffer {
   }
 }
 
-test("creates a project, transcribes audio, and quantizes a 120 BPM phrase", async ({ page }) => {
+test("interprets hands and staves for a real 120 BPM transcription", async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto("/");
   await expect(page.getByText("API connected")).toBeVisible();
   await expect(page.getByText("Piano transcription", { exact: true })).toBeVisible();
+  await expect(page.getByText("Hand and staff assignment", { exact: true })).toBeVisible();
   await expect(page.getByText("not implemented").first()).toBeVisible();
 
   const title = `Playwright study ${Date.now()}`;
@@ -124,6 +125,14 @@ test("creates a project, transcribes audio, and quantizes a 120 BPM phrase", asy
   expect(bpm).toBeGreaterThanOrEqual(119.5);
   expect(bpm).toBeLessThanOrEqual(120.5);
   await expect(page.getByText("Symbolic timing preview")).toBeVisible();
+  await page.getByRole("button", { name: "Assign hands and staves" }).click();
+  await expect(page.getByText("Hand and staff interpretation ready")).toBeVisible();
+  await expect(page.getByText("Interpreted note preview")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Voices, key and pitch spelling, cleaned MIDI, and score generation have not started.",
+    ),
+  ).toBeVisible();
 });
 
 test("rejects a file whose contents do not match its audio extension", async ({ page }) => {

@@ -1,6 +1,6 @@
 # Processing Pipeline
 
-The current product implements secure ingestion, typed media preparation, raw Basic Pitch transcription, and a conservative readable-timing baseline. Every later score-interpretation stage remains a separate typed boundary and must fail explicitly until implemented.
+The current product implements secure ingestion, typed media preparation, raw Basic Pitch transcription, conservative readable timing, and independent hand/staff interpretation. Every later score stage remains a separate typed boundary and must fail explicitly until implemented.
 
 | Stage | Input | Output/artifact | Main failure modes | Status |
 |---|---|---|---|---|
@@ -12,7 +12,8 @@ The current product implements secure ingestion, typed media preparation, raw Ba
 | Transcription | Normalized WAV | Raw typed note events | Missing worker, model load/inference failure, timeout, malformed output | Implemented |
 | Raw MIDI | Raw note events | Raw MIDI artifact | Invalid pitch/timing, serialization or finalization failure | Implemented |
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
-| Hands, staves, voices, spelling | Quantized notes | Structured score events | Ambiguous hand, voice, or spelling | Not implemented |
+| Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
+| Voices and pitch spelling | Interpreted notes | Voice trajectories, key, spelled score events | Ambiguous voice, key, or spelling | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
 | User correction | Note events and score state | Revised symbolic score and artifacts | Invalid edits or regeneration failure | Not implemented |
@@ -55,6 +56,25 @@ idempotent reuse. A running audit row is precommitted; success atomically update
 note symbolic fields, the current-run pointer, and an optimistic revision. Failures and concurrent
 losers preserve the prior complete symbolic result.
 
+## Implemented hand/staff interpretation contract
+
+`POST /api/projects/{project_id}/interpret` requires a current complete quantization. Hand and
+notation staff are independent assignments: a right-hand note may use bass staff and a left-hand
+note may use treble staff. Each pass evaluates contiguous lower/upper chord splits across the full
+passage using pitch comfort, span, movement, appearance, split movement, and crossing costs.
+
+Per-note confidence is the normalized cost margin between the best complete passage paths under
+the two competing assignments. A sub-threshold result succeeds as `unknown` with one typed reason:
+`insufficient_context`, `crossing`, `wide_chord`, `middle_register`, or `close_alternative`.
+Transition evaluation is counted before solving and rejected when it exceeds the configured work
+bound.
+
+The service fingerprints the current quantization run and ordered symbolic notes with the complete
+settings/version identity. Matching successful state is reused only after run ownership, stage,
+diagnostics, confidence, and ambiguity invariants pass. Success atomically writes all note fields,
+the current interpretation run, and an optimistic revision. Re-quantization invalidates this state
+only when timing is genuinely recomputed.
+
 ## Generated artifacts
 
 All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Source, normalized-audio, note-event JSON, and raw-MIDI artifacts are currently produced.
@@ -84,6 +104,9 @@ All artifact kinds are reserved in the schema: source, normalized audio, note-ev
 - `PIANOVA_QUANTIZATION_AMBIGUITY_MARGIN`, `PIANOVA_QUANTIZATION_OCTAVE_AMBIGUITY_MARGIN`: distinct-winner and half/double-tempo separation.
 - `PIANOVA_QUANTIZATION_REST_TOLERANCE_BEATS`, `PIANOVA_QUANTIZATION_SAME_PITCH_REPAIR_TOLERANCE_BEATS`: readable-duration and collision bounds.
 - `PIANOVA_QUANTIZATION_PREVIEW_NOTE_LIMIT`, `PIANOVA_QUANTIZATION_ALGORITHM_VERSION`: response bound and reuse identity.
+- `PIANOVA_INTERPRETATION_*_CENTER_PITCH`, scoring weights, span/register thresholds, and confidence margins: deterministic hand/staff baseline.
+- `PIANOVA_INTERPRETATION_MAXIMUM_TRANSITION_EVALUATIONS`: hard dynamic-programming work bound.
+- `PIANOVA_INTERPRETATION_PREVIEW_NOTE_LIMIT`, `PIANOVA_INTERPRETATION_ALGORITHM_VERSION`: response bound and reuse identity.
 - `PIANOVA_DATABASE_URL`: SQLite or another SQLAlchemy URL.
 
 Related: [architecture](architecture.md), [data model](data-model.md), and the root [run guide](../README.md#run-pianova).

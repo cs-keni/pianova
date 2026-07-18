@@ -1,6 +1,6 @@
 # Data Model Reference
 
-Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state. SQLAlchemy persistence models are separate from Pydantic API schemas.
+Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state; revision `20260716_0006` adds hand/staff state, confidence, ambiguity, ownership, and revision constraints. SQLAlchemy persistence models are separate from Pydantic API schemas.
 
 ## Project
 
@@ -24,6 +24,8 @@ Alembic revision `20260714_0001` creates the initial tables; revision `20260714_
 | `meter_source` | enum, nullable | `default` or `override` |
 | `current_quantization_run_id` | integer, nullable | ProcessingRun that owns current symbolic state |
 | `quantization_revision` | integer | Non-negative optimistic-concurrency counter |
+| `current_interpretation_run_id` | integer, nullable | Successful ProcessingRun that owns current hand/staff state |
+| `interpretation_revision` | integer | Non-negative optimistic-concurrency and invalidation counter |
 | `created_at`, `updated_at` | timestamps | UTC lifecycle timestamps |
 
 ## Artifact
@@ -47,19 +49,27 @@ Note events preserve performed timing separately from later notation:
 - `symbolic_start_beats`, `symbolic_duration_beats`: nullable quantized notation timing.
 - `chord_group`: nullable positive chronological group number.
 - `hand`: left, right, or unknown.
+- `staff`: treble, bass, or unknown; independent from hand.
+- `hand_confidence`, `staff_confidence`: nullable bounded evidence margins in `[0, 1]`.
+- `hand_ambiguity_reason`, `staff_ambiguity_reason`: nullable typed primary reason; required by service invariants for unknown assignments and absent for resolved assignments.
 - `source`: audio, video, audio-and-video, or manual.
 
 This split lets Pianova simplify rubato into readable rhythm without destroying the model's original evidence.
 
 ## ProcessingRun
 
-Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, and quantization create running and terminal audit rows.
+Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, quantization, and interpretation create running and terminal audit rows.
 
 Transcription runs additionally retain `model_name`, `model_version`, `model_runtime`, and `configuration_json`. This records the Basic Pitch/TensorFlow dependency versions and thresholds used to produce the raw evidence.
 
 Quantization keeps the ML columns empty and stores processor identity, raw-note fingerprint,
 effective settings, fit diagnostics, and result metadata in `configuration_json`. The project
 current-run pointer plus revision identify which successful run owns the persisted symbolic fields.
+
+Interpretation also keeps the ML columns empty. Its JSON records processor/runtime identity,
+current quantization ownership, input fingerprint, scoring settings, work bounds, and diagnostics.
+The project current-run pointer plus interpretation revision identify the owner of persisted
+hand/staff state. Re-quantization clears that pointer and all assignments atomically.
 
 ## API schemas
 
@@ -72,6 +82,7 @@ current-run pointer plus revision identify which successful run owns the persist
 - `MediaProcessResponse`: inspected project and streams, normalized Artifact, and whether an existing result was reused.
 - `TranscriptionResponse`: note-event and raw-MIDI Artifacts, total note count, a bounded note preview, model provenance, and whether existing output was reused.
 - `QuantizationResponse`: updated project timing, bounded symbolic-note preview, typed fit diagnostics, processor provenance, and reuse state.
+- `InterpretationResponse`: updated ownership/revision, bounded assignment preview, resolved/unknown and work diagnostics, processor provenance, and reuse state.
 
 API failures use `{ "error": { "code", "message", "details" } }`. Validation failures use the same envelope.
 

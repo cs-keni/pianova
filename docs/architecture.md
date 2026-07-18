@@ -9,7 +9,7 @@ Next.js browser UI
   | typed JSON and multipart HTTP
   v
 FastAPI routes
-  |-- services: project lifecycle, storage, media preparation, transcription, symbolic timing
+  |-- services: project lifecycle, storage, media preparation, transcription, timing, interpretation
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
   v
@@ -89,6 +89,24 @@ dependencies. Raw seconds remain immutable evidence. Project timing and note sym
 recomputed together, and the project points at the run that produced its current result. A failed or
 concurrent recomputation rolls back without damaging the prior symbolic state.
 
+Hand/staff interpretation is another lightweight, artifact-free boundary:
+
+```text
+ordered quantized NoteEvent rows
+  -> validate complete symbolic timing and current quantization ownership
+  -> fingerprint timing evidence + versioned scoring settings
+  -> bounded dynamic-programming hand pass
+  -> independent bounded dynamic-programming notation-staff pass
+  -> per-note competing-path confidence and typed ambiguity reason
+  -> optimistic Project revision compare-and-swap
+  -> commit assignments, current-run ownership, diagnostics, and provenance
+```
+
+The pure `app.symbolic.interpretation` module has no database, filesystem, frontend, subprocess,
+notation-library, or ML dependency. `InterpretationService` validates persisted reuse rather than
+trusting stored JSON. A genuine re-quantization clears all downstream assignments and its current
+run pointer in the same transaction; quantization reuse leaves interpretation intact.
+
 ## External executables
 
 FFmpeg, FFprobe, and MuseScore are configured by optional explicit paths or normal executable discovery. Startup probes use argument lists and bounded timeouts; the cached paths feed the capability registry and media service. Media subprocesses use separate configurable inspection and normalization timeouts.
@@ -120,5 +138,6 @@ ordinary API tests and startup when the optional environment is absent.
 - Synchronous normalization is simple and visible but holds one API request open; a local worker remains deferred until real file durations justify it.
 - A fresh transcription process isolates failures but reloads TensorFlow for each project. A persistent local worker is deferred until measured throughput justifies its lifecycle complexity.
 - One global tempo and straight sixteenth-note grid provide a testable baseline, but rubato maps, swing, tuplets, compound meter, and inferred downbeats require later evidence and UX.
+- Pitch-contiguous chord splits and passage continuity provide an inspectable hand/staff baseline, but voice separation, non-contiguous handings, key-aware spelling, and learned models require separate evaluation contracts.
 
 Related: [pipeline](pipeline.md), [data model](data-model.md), and [roadmap](roadmap.md).

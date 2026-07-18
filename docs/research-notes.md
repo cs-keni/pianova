@@ -45,6 +45,15 @@ runner-up's half-beat complexity penalty equaled the required ambiguity margin. 
 penalty from 0.03 to 0.04 made the documented acceptance threshold attainable without weakening
 ambiguity protection. The regression is locked by unit and live-boundary tests.
 
+The first hand/staff baseline is also deterministic and operates only on quantized symbolic
+evidence. For each chord group it considers every pitch-contiguous lower/upper split, then uses
+bounded passage-level dynamic programming to balance pitch comfort, span, continuity, appearance,
+split movement, and crossing pressure. Hand and notation staff run as independent passes. A note's
+confidence comes from the cost difference between the best complete paths under its two competing
+assignments; close alternatives remain explicitly unknown with one actionable reason. This is an
+inspectable baseline for evaluation, not a claim that piano fingering or engraving always follows
+pitch-contiguous partitions.
+
 ## Datasets and evaluation sources
 
 Candidate public research corpora include MAESTRO for aligned piano audio/MIDI and MAPS for piano transcription evaluation. Licensing, permitted redistribution, splits, and format conversion must be documented before any fixture is committed. Small synthetic WAV and symbolic fixtures are sufficient for infrastructure tests.

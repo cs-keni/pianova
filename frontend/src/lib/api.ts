@@ -49,6 +49,8 @@ export interface Project {
   meter_source: "default" | "override" | null;
   current_quantization_run_id: number | null;
   quantization_revision: number;
+  current_interpretation_run_id: number | null;
+  interpretation_revision: number;
   media_streams: MediaStream[];
   created_at: string;
   updated_at: string;
@@ -178,6 +180,58 @@ export interface QuantizationResponse {
   reused: boolean;
 }
 
+export type AssignmentAmbiguityReason =
+  | "close_alternative"
+  | "middle_register"
+  | "wide_chord"
+  | "crossing"
+  | "insufficient_context";
+
+export interface InterpretedNote {
+  id: number;
+  pitch: number;
+  symbolic_start_beats: number;
+  symbolic_duration_beats: number;
+  chord_group: number;
+  hand: "left" | "right" | "unknown";
+  staff: "treble" | "bass" | "unknown";
+  hand_confidence: number;
+  staff_confidence: number;
+  hand_ambiguity_reason: AssignmentAmbiguityReason | null;
+  staff_ambiguity_reason: AssignmentAmbiguityReason | null;
+}
+
+export interface InterpretationDiagnostics {
+  chord_group_count: number;
+  candidate_state_count: number;
+  transition_evaluations: number;
+  resolved_hand_count: number;
+  unknown_hand_count: number;
+  resolved_staff_count: number;
+  unknown_staff_count: number;
+  wide_chord_count: number;
+  crossing_pressure_count: number;
+}
+
+export interface InterpretationProvenance {
+  run_id: number;
+  processor_name: string;
+  processor_version: string;
+  runtime: string;
+  quantization_run_id: number;
+  input_fingerprint: string;
+  configuration: Record<string, unknown>;
+}
+
+export interface InterpretationResponse {
+  project: Project;
+  note_count: number;
+  preview_notes: InterpretedNote[];
+  diagnostics: InterpretationDiagnostics;
+  provenance: InterpretationProvenance;
+  reused: boolean;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -250,5 +304,9 @@ export const api = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+    }),
+  interpret: (projectId: string) =>
+    request<InterpretationResponse>(`/api/projects/${projectId}/interpret`, {
+      method: "POST",
     }),
 };

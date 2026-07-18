@@ -12,11 +12,13 @@ from app.core.errors import PianovaError
 from app.models.entities import (
     Artifact,
     ArtifactKind,
+    Hand,
     NoteEvent,
     ProcessingRun,
     ProcessingStatus,
     Project,
     SettingSource,
+    Staff,
     TempoSource,
     utc_now,
 )
@@ -107,6 +109,7 @@ class QuantizationService:
             return reused
 
         expected_revision = project.quantization_revision
+        expected_interpretation_revision = project.interpretation_revision
         run = ProcessingRun(
             project_id=project.id,
             stage=PROCESSING_STAGE,
@@ -132,6 +135,12 @@ class QuantizationService:
                 note.symbolic_start_beats = float(position.symbolic_start_beats)
                 note.symbolic_duration_beats = float(position.symbolic_duration_beats)
                 note.chord_group = position.chord_group
+                note.hand = Hand.UNKNOWN
+                note.staff = Staff.UNKNOWN
+                note.hand_confidence = None
+                note.staff_confidence = None
+                note.hand_ambiguity_reason = None
+                note.staff_ambiguity_reason = None
 
             completed_configuration = {
                 **request_configuration,
@@ -152,6 +161,7 @@ class QuantizationService:
                 .where(
                     Project.id == project.id,
                     Project.quantization_revision == expected_revision,
+                    Project.interpretation_revision == expected_interpretation_revision,
                 )
                 .values(
                     estimated_tempo_bpm=timing.estimated_tempo_bpm,
@@ -164,6 +174,8 @@ class QuantizationService:
                     meter_source=SettingSource(timing.meter_source),
                     current_quantization_run_id=run.id,
                     quantization_revision=expected_revision + 1,
+                    current_interpretation_run_id=None,
+                    interpretation_revision=expected_interpretation_revision + 1,
                     updated_at=utc_now(),
                 )
                 .execution_options(synchronize_session=False)

@@ -6,7 +6,16 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from app.models.entities import Artifact, ArtifactKind, NoteEvent, ProcessingRun
+from app.models.entities import (
+    Artifact,
+    ArtifactKind,
+    Hand,
+    NoteEvent,
+    ProcessingRun,
+    ProcessingStatus,
+    Project,
+    Staff,
+)
 
 
 def create_note_project(
@@ -55,6 +64,7 @@ def test_health_reports_media_capability_and_unfinished_stages(client: TestClien
     capabilities = {item["key"]: item["state"] for item in body["capabilities"]}
     assert capabilities["media_normalization"] == "available"
     assert capabilities["transcription"] == "available"
+    assert capabilities["interpretation"] == "available"
     assert capabilities["musicxml"] == "not_implemented"
     assert capabilities["score_rendering"] == "not_implemented"
 
@@ -557,3 +567,182 @@ def test_quantize_rejects_invalid_meter_payloads(
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
+
+
+def test_interpret_assigns_hands_and_staves_persists_and_reuses(
+    client: TestClient,
+) -> None:
+    project = create_note_project(
+        client,
+        [
+            (48, 0.0, 0.4),
+            (72, 0.0, 0.4),
+            (50, 0.5, 0.9),
+            (74, 0.5, 0.9),
+        ],
+        title="Interpretation",
+    )
+    quantized = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    assert quantized.status_code == 200
+
+    first = client.post(f"/api/projects/{project['id']}/interpret")
+    second = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["reused"] is False
+    assert body["note_count"] == 4
+    assert body["project"]["current_interpretation_run_id"] == body["provenance"]["run_id"]
+    assert body["project"]["interpretation_revision"] == 2
+    assert body["provenance"]["processor_name"] == "pianova_hand_staff_interpretation"
+    assert body["provenance"]["quantization_run_id"] == quantized.json()["provenance"]["run_id"]
+    assert body["diagnostics"]["resolved_hand_count"] == 4
+    assert body["diagnostics"]["unknown_hand_count"] == 0
+    assert {note["hand"] for note in body["preview_notes"]} == {"left", "right"}
+    assert {note["staff"] for note in body["preview_notes"]} == {"bass", "treble"}
+    assert second.status_code == 200
+    assert second.json()["reused"] is True
+    assert second.json()["provenance"]["run_id"] == body["provenance"]["run_id"]
+
+    with client.app.state.session_factory() as session:
+        notes = tuple(
+            session.scalars(
+                select(NoteEvent)
+                .where(NoteEvent.project_id == project["id"])
+                .order_by(NoteEvent.pitch)
+            )
+        )
+        assert [note.hand for note in notes] == [Hand.LEFT, Hand.LEFT, Hand.RIGHT, Hand.RIGHT]
+        assert [note.staff for note in notes] == [
+            Staff.BASS,
+            Staff.BASS,
+            Staff.TREBLE,
+            Staff.TREBLE,
+        ]
+        assert all(note.hand_confidence is not None for note in notes)
+        assert all(note.staff_confidence is not None for note in notes)
+        assert (
+            session.scalar(
+                select(func.count(ProcessingRun.id)).where(
+                    ProcessingRun.project_id == project["id"],
+                    ProcessingRun.stage == "interpretation",
+                )
+            )
+            == 1
+        )
+
+
+def test_interpret_requires_current_quantization(client: TestClient) -> None:
+    project = create_note_project(client, [(60, 0.0, 0.4)], title="Not quantized")
+
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "quantization_required"
+
+
+def test_interpret_rejects_invalid_current_quantization_owner(client: TestClient) -> None:
+    project = create_note_project(
+        client,
+        [(48, 0.0, 0.4), (72, 0.0, 0.4)],
+        title="Invalid quantization owner",
+    )
+    quantized = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    assert quantized.status_code == 200
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        stored.current_quantization_run_id = 999_999
+        session.commit()
+
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "quantization_required"
+
+
+def test_interpret_declines_malformed_reuse_state(client: TestClient) -> None:
+    project = create_note_project(
+        client,
+        [(48, 0.0, 0.4), (72, 0.0, 0.4), (50, 0.5, 0.9), (74, 0.5, 0.9)],
+        title="Repair reuse",
+    )
+    client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    first = client.post(f"/api/projects/{project['id']}/interpret")
+    assert first.status_code == 200
+
+    with client.app.state.session_factory() as session:
+        stored_project = session.get(Project, project["id"])
+        assert stored_project is not None
+        run = session.get(ProcessingRun, stored_project.current_interpretation_run_id)
+        assert run is not None
+        run.configuration_json = "not-json"
+        session.commit()
+
+    repaired_provenance = client.post(f"/api/projects/{project['id']}/interpret")
+    assert repaired_provenance.status_code == 200
+    assert repaired_provenance.json()["reused"] is False
+
+    with client.app.state.session_factory() as session:
+        note = session.scalar(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        assert note is not None
+        note.hand_confidence = None
+        session.commit()
+
+    repaired_assignment = client.post(f"/api/projects/{project['id']}/interpret")
+    assert repaired_assignment.status_code == 200
+    assert repaired_assignment.json()["reused"] is False
+    with client.app.state.session_factory() as session:
+        runs = tuple(
+            session.scalars(
+                select(ProcessingRun).where(
+                    ProcessingRun.project_id == project["id"],
+                    ProcessingRun.stage == "interpretation",
+                    ProcessingRun.status == ProcessingStatus.SUCCEEDED,
+                )
+            )
+        )
+        assert len(runs) == 3
+
+
+def test_requantization_invalidates_current_interpretation(client: TestClient) -> None:
+    project = create_note_project(
+        client,
+        [(48, 0.0, 0.4), (72, 0.0, 0.4), (50, 0.5, 0.9), (74, 0.5, 0.9)],
+        title="Invalidate interpretation",
+    )
+    client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+    interpreted = client.post(f"/api/projects/{project['id']}/interpret")
+    assert interpreted.status_code == 200
+
+    requantized = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 90},
+    )
+
+    assert requantized.status_code == 200
+    assert requantized.json()["reused"] is False
+    assert requantized.json()["project"]["current_interpretation_run_id"] is None
+    assert requantized.json()["project"]["interpretation_revision"] == 3
+    with client.app.state.session_factory() as session:
+        notes = tuple(
+            session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        )
+        assert all(note.hand is Hand.UNKNOWN for note in notes)
+        assert all(note.staff is Staff.UNKNOWN for note in notes)
+        assert all(note.hand_confidence is None for note in notes)
+        assert all(note.staff_confidence is None for note in notes)
+        assert all(note.hand_ambiguity_reason is None for note in notes)
+        assert all(note.staff_ambiguity_reason is None for note in notes)

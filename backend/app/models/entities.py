@@ -24,6 +24,20 @@ class Hand(enum.StrEnum):
     UNKNOWN = "unknown"
 
 
+class Staff(enum.StrEnum):
+    TREBLE = "treble"
+    BASS = "bass"
+    UNKNOWN = "unknown"
+
+
+class AssignmentAmbiguityReason(enum.StrEnum):
+    CLOSE_ALTERNATIVE = "close_alternative"
+    MIDDLE_REGISTER = "middle_register"
+    WIDE_CHORD = "wide_chord"
+    CROSSING = "crossing"
+    INSUFFICIENT_CONTEXT = "insufficient_context"
+
+
 class DetectionSource(enum.StrEnum):
     AUDIO = "audio"
     VIDEO = "video"
@@ -94,6 +108,8 @@ class Project(Base):
     )
     current_quantization_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     quantization_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    current_interpretation_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    interpretation_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -131,6 +147,17 @@ class NoteEvent(Base):
     symbolic_duration_beats: Mapped[float | None] = mapped_column(Float, nullable=True)
     chord_group: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hand: Mapped[Hand] = mapped_column(Enum(Hand, native_enum=False), default=Hand.UNKNOWN)
+    staff: Mapped[Staff] = mapped_column(
+        Enum(Staff, native_enum=False), default=Staff.UNKNOWN, server_default="UNKNOWN"
+    )
+    hand_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    staff_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hand_ambiguity_reason: Mapped[AssignmentAmbiguityReason | None] = mapped_column(
+        Enum(AssignmentAmbiguityReason, native_enum=False), nullable=True
+    )
+    staff_ambiguity_reason: Mapped[AssignmentAmbiguityReason | None] = mapped_column(
+        Enum(AssignmentAmbiguityReason, native_enum=False), nullable=True
+    )
     source: Mapped[DetectionSource] = mapped_column(
         Enum(DetectionSource, native_enum=False), default=DetectionSource.AUDIO
     )

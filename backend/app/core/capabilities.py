@@ -52,6 +52,12 @@ def build_capabilities(
             reason="Global tempo estimation and readable straight-note quantization are ready.",
         ),
         Capability(
+            key="interpretation",
+            label="Hand and staff assignment",
+            state=CapabilityState.AVAILABLE,
+            reason="Independent hand and notation-staff assignment with uncertainty is ready.",
+        ),
+        Capability(
             key="musicxml",
             label="MusicXML generation",
             state=CapabilityState.NOT_IMPLEMENTED,

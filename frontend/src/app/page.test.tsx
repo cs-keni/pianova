@@ -28,6 +28,12 @@ const health = {
       state: "available",
       reason: "Global tempo estimation and readable straight-note quantization are ready.",
     },
+    {
+      key: "interpretation",
+      label: "Hand and staff assignment",
+      state: "available",
+      reason: "Independent hand and notation-staff assignment with uncertainty is ready.",
+    },
   ],
 };
 
@@ -57,6 +63,8 @@ const project = {
   meter_source: null,
   current_quantization_run_id: null,
   quantization_revision: 0,
+  current_interpretation_run_id: null,
+  interpretation_revision: 0,
   media_streams: [],
   created_at: "2026-07-14T00:00:00Z",
   updated_at: "2026-07-14T00:00:00Z",
@@ -89,7 +97,8 @@ describe("Pianova home", () => {
     expect(screen.getByText("Media normalization")).toBeInTheDocument();
     expect(screen.getByText("Piano transcription")).toBeInTheDocument();
     expect(screen.getByText("Tempo and rhythm quantization")).toBeInTheDocument();
-    expect(screen.getAllByText("available")).toHaveLength(3);
+    expect(screen.getByText("Hand and staff assignment")).toBeInTheDocument();
+    expect(screen.getAllByText("available")).toHaveLength(4);
   });
 
   it("creates a project once and advances to upload", async () => {
@@ -200,8 +209,11 @@ describe("Pianova home", () => {
       meter_source: "override",
       current_quantization_run_id: 3,
       quantization_revision: 1,
+      interpretation_revision: 1,
     };
     let quantizationAttempts = 0;
+    let interpretationAttempts = 0;
+    let resolveInterpretation!: (response: Response) => void;
     vi.mocked(fetch).mockImplementation((input) => {
       const url = input.toString();
       if (url.endsWith("/api/health")) return Promise.resolve(jsonResponse(health));
@@ -335,6 +347,60 @@ describe("Pianova home", () => {
           }),
         );
       }
+      if (url.endsWith("/api/projects/project-1/interpret")) {
+        interpretationAttempts += 1;
+        if (interpretationAttempts === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveInterpretation = resolve;
+          });
+        }
+        return Promise.resolve(
+          jsonResponse({
+            project: {
+              ...quantizedProject,
+              current_interpretation_run_id: 4,
+              interpretation_revision: 2,
+            },
+            note_count: 1,
+            preview_notes: [
+              {
+                id: 1,
+                pitch: 69,
+                symbolic_start_beats: 0,
+                symbolic_duration_beats: 0.5,
+                chord_group: 1,
+                hand: "unknown",
+                staff: "treble",
+                hand_confidence: 0.42,
+                staff_confidence: 0.91,
+                hand_ambiguity_reason: "middle_register",
+                staff_ambiguity_reason: null,
+              },
+            ],
+            diagnostics: {
+              chord_group_count: 1,
+              candidate_state_count: 4,
+              transition_evaluations: 0,
+              resolved_hand_count: 0,
+              unknown_hand_count: 1,
+              resolved_staff_count: 1,
+              unknown_staff_count: 0,
+              wide_chord_count: 0,
+              crossing_pressure_count: 0,
+            },
+            provenance: {
+              run_id: 4,
+              processor_name: "pianova_hand_staff_interpretation",
+              processor_version: "1.0.0",
+              runtime: "python 3.11.9",
+              quantization_run_id: 3,
+              input_fingerprint: "def456",
+              configuration: {},
+            },
+            reused: false,
+          }),
+        );
+      }
       return Promise.reject(new Error(`Unexpected request: ${url}`));
     });
     const user = userEvent.setup();
@@ -382,5 +448,42 @@ describe("Pianova home", () => {
     expect(screen.getByText("M1 · beat 1.00")).toBeInTheDocument();
     expect(screen.getByText("Override")).toBeInTheDocument();
     expect(quantizationAttempts).toBe(2);
+
+    const interpretButton = screen.getByRole("button", { name: "Assign hands and staves" });
+    await user.click(interpretButton);
+    expect(screen.getByRole("button", { name: "Assigning hands and staves…" })).toBeDisabled();
+    expect(interpretationAttempts).toBe(1);
+    resolveInterpretation(
+      jsonResponse(
+        {
+          error: {
+            code: "interpretation_failed",
+            message: "Hands and staves could not be assigned.",
+          },
+        },
+        500,
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Hands and staves could not be assigned.",
+    );
+    await user.click(screen.getByRole("button", { name: "Assign hands and staves" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Hand and staff interpretation ready",
+        level: 4,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("0 resolved · 1 unknown")).toBeInTheDocument();
+    expect(screen.getByText("1 resolved · 0 unknown")).toBeInTheDocument();
+    expect(screen.getByText("42% · middle register")).toBeInTheDocument();
+    expect(screen.getByText("91% · Resolved")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Voices, key and pitch spelling, cleaned MIDI, and score generation have not started.",
+      ),
+    ).toBeInTheDocument();
+    expect(interpretationAttempts).toBe(2);
   });
 });

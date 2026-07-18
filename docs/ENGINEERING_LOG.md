@@ -73,3 +73,13 @@
 - The frontend exposes automatic tempo, BPM recovery, `2/4`/`3/4`/`4/4`, explicit measure origin, fit diagnostics, and symbolic preview while clearly deferring hands, voices, and score generation.
 - The live fixture uses five distinct piano tones whose attacks are adjusted for Basic Pitch analysis-frame rounding. The real worker must emit a pulse accepted within 119.5-120.5 BPM; this is an integration contract, not a musical benchmark.
 - Verification baseline is now 62 backend tests, five component tests, a clean production build, and three live Chromium flows.
+
+## 2026-07-17 — Independent hand and staff interpretation
+
+- Alembic revision `20260716_0006` adds current interpretation ownership/revision plus independent staff, bounded confidence, and typed ambiguity fields on note events.
+- The pure interpretation engine uses separate bounded dynamic-programming passes for hand and notation staff over pitch-contiguous chord splits. Per-note confidence compares the best complete paths under competing assignments; close evidence persists as `unknown` with one primary reason.
+- The orchestration service fingerprints the current quantization run and ordered symbolic evidence, persists all settings and diagnostics, and validates run ownership, stored JSON, diagnostic totals, confidence bounds, and unknown/reason consistency before reuse.
+- A genuine re-quantization resets downstream assignments and current-run ownership and increments the interpretation revision in the same optimistic transaction. Quantization reuse preserves interpretation; commit failures and concurrency losers preserve the previous complete state.
+- `POST /api/projects/{project_id}/interpret` and the capability registry expose the implemented boundary. The frontend adds an explicit action, disables duplicate submission, recovers after API failure, and displays resolved/unknown hand and staff evidence without claiming voices, spelling, cleaned MIDI, or score generation.
+- The real generated five-note phrase now crosses FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, persistence, and hand/staff interpretation in Playwright.
+- Verification baseline is now Ruff plus formatting, strict mypy across 34 backend application sources, 77 pytest tests, Alembic through `20260716_0006` with no drift, five component tests, a clean production build, and three live Chromium flows.

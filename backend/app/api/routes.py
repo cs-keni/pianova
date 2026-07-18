@@ -9,12 +9,16 @@ from app.core.capabilities import build_capabilities
 from app.core.config import Settings
 from app.core.dependencies import DependencyStatus
 from app.core.errors import PianovaError
-from app.models.entities import Project
+from app.models.entities import AssignmentAmbiguityReason, Hand, Project, Staff
 from app.schemas import (
     ArtifactResponse,
     ConfigResponse,
     DependencyResponse,
     HealthResponse,
+    InterpretationDiagnosticsResponse,
+    InterpretationProvenanceResponse,
+    InterpretationResponse,
+    InterpretedNoteResponse,
     MediaProcessResponse,
     NoteEventResponse,
     ProjectCreate,
@@ -28,6 +32,7 @@ from app.schemas import (
     TranscriptionResponse,
     UploadResponse,
 )
+from app.services.interpretation import InterpretationService
 from app.services.media import MediaService
 from app.services.projects import ProjectService
 from app.services.quantization import QuantizationService
@@ -254,6 +259,89 @@ def quantize_project(
             processor_name=str(provenance["processor_name"]),
             processor_version=str(provenance["processor_version"]),
             runtime=str(provenance["runtime"]),
+            input_fingerprint=str(provenance["input_fingerprint"]),
+            configuration=provenance,
+        ),
+        reused=result.reused,
+    )
+
+
+@router.post("/projects/{project_id}/interpret", response_model=InterpretationResponse)
+def interpret_project(
+    project_id: str,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> InterpretationResponse:
+    project = session.get(Project, project_id)
+    if project is None:
+        raise PianovaError("project_not_found", "The requested project does not exist.", 404)
+    result = InterpretationService(session, settings).interpret(project)
+    provenance = result.provenance
+    quantization_run_id = provenance.get("quantization_run_id")
+    if not isinstance(quantization_run_id, int) or isinstance(quantization_run_id, bool):
+        raise PianovaError(
+            "interpretation_provenance_invalid",
+            "The successful interpretation has invalid provenance.",
+            500,
+        )
+    preview_notes: list[InterpretedNoteResponse] = []
+    for note in result.notes[: settings.interpretation_preview_note_limit]:
+        assignment = result.assignments[note.id]
+        if (
+            note.symbolic_start_beats is None
+            or note.symbolic_duration_beats is None
+            or note.chord_group is None
+        ):
+            raise PianovaError(
+                "interpretation_result_invalid",
+                "The interpreted note preview has incomplete timing.",
+                500,
+            )
+        preview_notes.append(
+            InterpretedNoteResponse(
+                id=note.id,
+                pitch=note.pitch,
+                symbolic_start_beats=note.symbolic_start_beats,
+                symbolic_duration_beats=note.symbolic_duration_beats,
+                chord_group=note.chord_group,
+                hand=Hand(assignment.hand),
+                staff=Staff(assignment.staff),
+                hand_confidence=assignment.hand_confidence,
+                staff_confidence=assignment.staff_confidence,
+                hand_ambiguity_reason=(
+                    AssignmentAmbiguityReason(assignment.hand_ambiguity_reason)
+                    if assignment.hand_ambiguity_reason
+                    else None
+                ),
+                staff_ambiguity_reason=(
+                    AssignmentAmbiguityReason(assignment.staff_ambiguity_reason)
+                    if assignment.staff_ambiguity_reason
+                    else None
+                ),
+            )
+        )
+    diagnostics = result.diagnostics
+    return InterpretationResponse(
+        project=ProjectResponse.model_validate(project),
+        note_count=len(result.notes),
+        preview_notes=preview_notes,
+        diagnostics=InterpretationDiagnosticsResponse(
+            chord_group_count=diagnostics.chord_group_count,
+            candidate_state_count=diagnostics.candidate_state_count,
+            transition_evaluations=diagnostics.transition_evaluations,
+            resolved_hand_count=diagnostics.resolved_hand_count,
+            unknown_hand_count=diagnostics.unknown_hand_count,
+            resolved_staff_count=diagnostics.resolved_staff_count,
+            unknown_staff_count=diagnostics.unknown_staff_count,
+            wide_chord_count=diagnostics.wide_chord_count,
+            crossing_pressure_count=diagnostics.crossing_pressure_count,
+        ),
+        provenance=InterpretationProvenanceResponse(
+            run_id=result.run.id,
+            processor_name=str(provenance["processor_name"]),
+            processor_version=str(provenance["processor_version"]),
+            runtime=str(provenance["runtime"]),
+            quantization_run_id=quantization_run_id,
             input_fingerprint=str(provenance["input_fingerprint"]),
             configuration=provenance,
         ),

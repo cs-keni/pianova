@@ -7,6 +7,7 @@ import {
   api,
   type ConfigResponse,
   type HealthResponse,
+  type InterpretationResponse,
   type Project,
   type QuantizationResponse,
   type TranscriptionResponse,
@@ -34,6 +35,14 @@ function errorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something unexpected went wrong.";
 }
 
+function formatAssignment(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatReason(reason: string | null): string {
+  return reason ? reason.replaceAll("_", " ") : "Resolved";
+}
+
 export default function Home() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -49,6 +58,8 @@ export default function Home() {
   const [transcription, setTranscription] = useState<TranscriptionResponse | null>(null);
   const [quantizing, setQuantizing] = useState(false);
   const [quantization, setQuantization] = useState<QuantizationResponse | null>(null);
+  const [interpreting, setInterpreting] = useState(false);
+  const [interpretation, setInterpretation] = useState<InterpretationResponse | null>(null);
   const [tempoOverride, setTempoOverride] = useState("");
   const [meter, setMeter] = useState("4/4");
   const [measureOrigin, setMeasureOrigin] = useState("");
@@ -167,6 +178,21 @@ export default function Home() {
     }
   }
 
+  async function interpretProject() {
+    if (!project || interpreting) return;
+    setInterpreting(true);
+    setFormError(null);
+    try {
+      const response = await api.interpret(project.id);
+      setProject(response.project);
+      setInterpretation(response);
+    } catch (error) {
+      setFormError(errorMessage(error));
+    } finally {
+      setInterpreting(false);
+    }
+  }
+
   const mediaCapability = health?.capabilities.find(
     (capability) => capability.key === "media_normalization",
   );
@@ -222,12 +248,24 @@ export default function Home() {
             <div>
               <p className={styles.step}>
                 Step{" "}
-                {quantization ? "5" : transcription ? "4" : mediaReady ? "3" : project ? "2" : "1"}{" "}
-                of 5
+                {interpretation
+                  ? "6"
+                  : quantization
+                    ? "5"
+                    : transcription
+                      ? "4"
+                      : mediaReady
+                        ? "3"
+                        : project
+                          ? "2"
+                          : "1"}{" "}
+                of 6
               </p>
               <h3 id="workflow-title">
-                {quantization
-                  ? "Readable timing ready"
+                {interpretation
+                  ? "Hands and staves assigned"
+                  : quantization
+                    ? "Readable timing ready"
                   : transcription
                   ? "Raw transcription ready"
                   : mediaReady
@@ -258,6 +296,85 @@ export default function Home() {
                 {creating ? "Creating…" : "Create local project"}
               </button>
             </form>
+          ) : interpretation ? (
+            <div className={styles.quantizationResult} role="status">
+              <div className={styles.success}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h4>Hand and staff interpretation ready</h4>
+                  <p>
+                    {interpretation.note_count} interpreted{" "}
+                    {interpretation.note_count === 1 ? "note" : "notes"} · uncertainty remains
+                    explicit
+                  </p>
+                  <p>
+                    Voices, key and pitch spelling, cleaned MIDI, and score generation have not
+                    started.
+                  </p>
+                </div>
+              </div>
+              <dl className={styles.timingDiagnostics}>
+                <div>
+                  <dt>Hands</dt>
+                  <dd>
+                    {interpretation.diagnostics.resolved_hand_count} resolved ·{" "}
+                    {interpretation.diagnostics.unknown_hand_count} unknown
+                  </dd>
+                </div>
+                <div>
+                  <dt>Staves</dt>
+                  <dd>
+                    {interpretation.diagnostics.resolved_staff_count} resolved ·{" "}
+                    {interpretation.diagnostics.unknown_staff_count} unknown
+                  </dd>
+                </div>
+                <div>
+                  <dt>Wide chords</dt>
+                  <dd>{interpretation.diagnostics.wide_chord_count}</dd>
+                </div>
+                <div>
+                  <dt>Processor</dt>
+                  <dd>{interpretation.provenance.processor_version}</dd>
+                </div>
+              </dl>
+              <div className={styles.notePreview}>
+                <h4>Interpreted note preview</h4>
+                <div className={styles.noteTableWrap}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pitch</th>
+                        <th>Grid onset</th>
+                        <th>Hand</th>
+                        <th>Hand evidence</th>
+                        <th>Staff</th>
+                        <th>Staff evidence</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {interpretation.preview_notes.map((note) => (
+                        <tr key={note.id}>
+                          <td>
+                            {formatPitch(note.pitch)} <small>MIDI {note.pitch}</small>
+                          </td>
+                          <td>{note.symbolic_start_beats.toFixed(2)}</td>
+                          <td>{formatAssignment(note.hand)}</td>
+                          <td>
+                            {Math.round(note.hand_confidence * 100)}% ·{" "}
+                            {formatReason(note.hand_ambiguity_reason)}
+                          </td>
+                          <td>{formatAssignment(note.staff)}</td>
+                          <td>
+                            {Math.round(note.staff_confidence * 100)}% ·{" "}
+                            {formatReason(note.staff_ambiguity_reason)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           ) : quantization ? (
             <div className={styles.quantizationResult} role="status">
               <div className={styles.success}>
@@ -333,6 +450,14 @@ export default function Home() {
                   </table>
                 </div>
               </div>
+              <button
+                type="button"
+                className={styles.primaryButton}
+                disabled={interpreting}
+                onClick={interpretProject}
+              >
+                {interpreting ? "Assigning hands and staves…" : "Assign hands and staves"}
+              </button>
             </div>
           ) : transcription ? (
             <div className={styles.transcriptionResult} role="status">
