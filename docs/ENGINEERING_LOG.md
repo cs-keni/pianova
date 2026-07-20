@@ -171,3 +171,25 @@
   contig connection, or music21 runtime behavior.
 - The final baseline remains 37 strict-mypy application sources, 116 pytest tests, five component
   tests, a production build, and three live Chromium flows through notation voices.
+
+## 2026-07-19 — Key-spelling plan review locked (planning only)
+
+- Resumed the plan-eng-review session that a terminal crash interrupted mid-review; the
+  `docs/KEY_SPELLING_PLAN.md` draft and its approved decisions D2-D6 survived intact.
+- Review finding 1: the enharmonic tonic naming rule was unstated and load-bearing (24
+  pitch-class correlation vs 15-per-mode named signatures). Locked rule: fewer accidentals
+  wins; the six-accidental tie (F#/Gb major, D#/Eb minor) breaks flat, matching the engine's
+  flat-before-sharp spelling tie-break.
+- Review finding 2: corrected the stale no-music-library claim; `pretty-midi` is declared in
+  `backend/pyproject.toml` but imported nowhere, and T6 now audits it.
+- Codex outside voice returned 15 findings. Accepted five: context-free D4 agreement with an
+  explicit penalty formula and named weights; degenerate-evidence gates (distinct pitch
+  classes, zero-variance histogram) before correlation; the engine contract now takes floats
+  plus `chord_group` because symbolic beats persist as floats
+  (`entities.py`/`quantization.py`), never Fractions; the four-state key check now couples to
+  `current_spelling_run_id`; the live e2e gains a resolved-key leg and T1 gains hand-authored
+  public-domain ground-truth fixtures, with a transcription-fragmentation caveat recorded in
+  evaluation. Rejected per settled decisions: milestone reordering, stage merging, removing
+  the voice prerequisite, and best-guess-with-flag unknowns.
+- The plan file now ends with the GSTACK REVIEW REPORT: verdict ENG CLEARED, no unresolved
+  decisions. No application code changed this session.

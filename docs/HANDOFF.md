@@ -2,6 +2,17 @@
 
 ## What changed
 
+- 2026-07-19 (planning only, no code): authored and locked `docs/KEY_SPELLING_PLAN.md`, the
+  reviewed execution plan for key detection and enharmonic spelling. gstack plan-eng-review
+  found two issues (canonical tonic naming was unstated and load-bearing; a stale
+  no-music-library claim), and a Codex outside-voice pass produced 15 findings of which five
+  were accepted into the plan: context-free D4 agreement with an explicit penalty formula,
+  degenerate-evidence gates before correlation, a float + `chord_group` contract replacing the
+  false exact-Fraction claim, a pointer-coupled four-state key check, and evaluation honesty
+  additions (resolved-key e2e leg, public-domain ground-truth fixtures, fragmentation caveat).
+  Strategic reordering and best-guess-unknown dissents were rejected per the settled D2/D4/D5
+  decisions. The plan file ends with the GSTACK REVIEW REPORT, verdict ENG CLEARED, no
+  unresolved decisions.
 - Extracted the shared symbolic-stage transaction mechanics into `app.services.stage_runner`:
   durable RUNNING precommit, success compare-and-swap enforcement, and rollback-following failed
   audit updates. Quantization and interpretation now use it with no contract change.
@@ -52,10 +63,10 @@
 ## Remaining work
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
-The next ordered milestone is a reviewed key-detection and enharmonic-spelling boundary over the
-persisted voices. Cleaned MIDI, MusicXML,
-rendering, correction tools, broad accuracy benchmarks, and Synthesia work remain deferred in
-that order.
+The key-detection and enharmonic-spelling plan is now reviewed and locked at
+`docs/KEY_SPELLING_PLAN.md`; the next steps are Codex's independent review of that plan and
+then implementation T1-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
+broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks
 
@@ -73,5 +84,6 @@ that order.
 
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
 reviewed voice plan is shipped as `b20fb17`. Voice delivery slices are T1 `14999b2`, T2 `9c59b24`,
-T3 `8066270`, T4 `d6c2c30`, T5 `ee269f7`, and T6 `2a938fc`. T7 completes the shared-context sweep
-and final verification in this delivery.
+T3 `8066270`, T4 `d6c2c30`, T5 `ee269f7`, and T6 `2a938fc`. T7 completed the shared-context sweep
+and final verification as `3aecee2`. This delivery ships the reviewed key-spelling plan and the
+matching shared-context updates; no application code changed.

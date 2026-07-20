@@ -2,9 +2,12 @@
 
 ## Active milestone
 
-Voice separation is complete. The next ordered milestone is key detection and enharmonic spelling
-over the verified notation-voice boundary. The implemented and verified voice plan is
-`docs/VOICE_SEPARATION_PLAN.md`; all T1-T7 tasks are complete.
+Key detection and enharmonic spelling over the verified notation-voice boundary. The execution
+plan is `docs/KEY_SPELLING_PLAN.md`, drafted and locked through gstack plan-eng-review on
+2026-07-19 with a Codex outside-voice pass absorbed (report at the end of the plan file,
+verdict ENG CLEARED, no unresolved decisions). Implementation has not started. The next step
+is Codex's independent review of the locked plan, then T1 (pure engine). The prior voice plan
+`docs/VOICE_SEPARATION_PLAN.md` is complete through T1-T7 and its decisions stay locked.
 
 ## Status
 
@@ -65,8 +68,13 @@ The voice milestone is closed with these locked decisions:
    hard forced-only rule; no weighted DP (D3, adopted from the cross-model review).
 4. Key detection and enharmonic spelling remain the subsequent boundary; no coupling was proven.
 
-The next implementation target requires a reviewed key-detection and enharmonic-spelling plan.
-Do not begin MusicXML or rendering until the spelling boundary is verified.
+The reviewed key-detection and enharmonic-spelling plan now exists at
+`docs/KEY_SPELLING_PLAN.md`. Its load-bearing review outcomes: one combined `pitch_spelling`
+stage, global key only with canonical tonic naming (fewer accidentals; the six-accidental tie
+breaks flat), context-free D4 agreement under unknown keys, a float + `chord_group` engine
+contract (symbolic beats persist as floats, never Fractions), degenerate-evidence gates before
+correlation, and a pointer-coupled four-state key check. Do not begin MusicXML or rendering
+until the spelling boundary is verified.
 
 ## Active blockers
 
