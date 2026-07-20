@@ -79,6 +79,21 @@ outside the runtime because the present engine needs explicit typed unknowns, de
 staff-scoped orientation, versioned diagnostics, and persistence ownership:
 [music21 `makeVoices`](https://music21.org/music21docs/moduleReference/moduleStreamBase.html#music21.stream.base.Stream.makeVoices).
 
+The first key/spelling engine is also deterministic and dependency-free. It correlates a
+duration-weighted 12-class histogram against the 24 Krumhansl-Kessler major/minor profiles after
+minimum-count, distinct-class, and normalized centered-norm gates. Estimated pitch-class keys use
+one canonical standard-signature tonic name: fewer accidentals wins and the six-accidental tie is
+flat. The spelling pass keeps persisted float beats but uses `chord_group`, never float equality,
+for simultaneity. It combines line-of-fifths distance with bounded chord-third and chromatic-neighbor
+bonuses. A fixed 12-unit gap scale avoids the two-candidate normalization collapse discovered in
+independent review. Under an unknown key, only the same unique above-margin winner across every
+plausible key resolves; other notes remain typed `unknown_key`. This is a global-key baseline, not
+modulation or harmonic analysis, and its margins remain uncalibrated pending a licensed corpus.
+The algorithm shape follows the documented duration-histogram/profile-correlation procedure in
+[Humdrum `keycor`](https://extras.humdrum.org/man/keycor/); Temperley's
+["What's Key for Key?"](https://davidtemperley.com/wp-content/uploads/2015/11/temperley-mp99.pdf)
+is the recorded reference for later evaluation of alternative profiles and key-finding models.
+
 ## Datasets and evaluation sources
 
 Candidate public research corpora include MAESTRO for aligned piano audio/MIDI and MAPS for piano transcription evaluation. Licensing, permitted redistribution, splits, and format conversion must be documented before any fixture is committed. Small synthetic WAV and symbolic fixtures are sufficient for infrastructure tests.

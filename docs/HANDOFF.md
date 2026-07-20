@@ -2,6 +2,16 @@
 
 ## What changed
 
+- 2026-07-19 (T1): independently re-reviewed the locked key/spelling plan and closed two blocking
+  scoring gaps before implementation. Key confidence now uses the full Pearson span; spelling
+  confidence uses a fixed 12-unit scale instead of the collapsing observed two-candidate range.
+  D4 now requires one shared unique above-margin winner across every plausible key, stores
+  worst-case resolved support, and gives contested notes `unknown_key` at 0.0. Implemented
+  `app.symbolic.spelling`, a pure deterministic O(24n) engine with canonical key names,
+  finite/degenerate evidence gates, validated overrides, contextual spelling, typed unknowns,
+  diagnostics, octave-safe MIDI round trips, and no persistence/frontend/dependency coupling.
+  Added 32 focused fixtures with 100% module coverage, including non-degenerate C-major/A-minor ambiguity and two
+  hand-authored public-domain excerpts.
 - 2026-07-19 (planning only, no code): authored and locked `docs/KEY_SPELLING_PLAN.md`, the
   reviewed execution plan for key detection and enharmonic spelling. gstack plan-eng-review
   found two issues (canonical tonic naming was unstated and load-bearing; a stale
@@ -53,8 +63,8 @@
 
 ## Checks run
 
-- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 37 source files;
-  pytest passed 116 tests. The original 77 tests pass unmodified with the new helper tests excluded.
+- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 38 source files;
+  pytest passed 148 tests. The focused spelling suite passed all 32 tests with 100% module coverage.
 - Database: Alembic upgraded through `20260718_0007`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
 - Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, hand/staff interpretation, and notation-voice separation.
@@ -64,8 +74,8 @@
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
 The key-detection and enharmonic-spelling plan is now reviewed and locked at
-`docs/KEY_SPELLING_PLAN.md`; the next steps are Codex's independent review of that plan and
-then implementation T1-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
+`docs/KEY_SPELLING_PLAN.md`; T1 is complete and the next step is T2 checked persistence, followed
+by T3-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
 broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks
@@ -85,5 +95,5 @@ broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
 reviewed voice plan is shipped as `b20fb17`. Voice delivery slices are T1 `14999b2`, T2 `9c59b24`,
 T3 `8066270`, T4 `d6c2c30`, T5 `ee269f7`, and T6 `2a938fc`. T7 completed the shared-context sweep
-and final verification as `3aecee2`. This delivery ships the reviewed key-spelling plan and the
-matching shared-context updates; no application code changed.
+and final verification as `3aecee2`. The key-spelling plan shipped as `c6e28ba`; this delivery adds
+the corrected T1 pure engine and matching shared-context updates.

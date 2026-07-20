@@ -1,6 +1,7 @@
 # Key Detection and Enharmonic Spelling Plan
 
-Status: draft under review 2026-07-19. No implementation has started.
+Status: locked after independent Codex review 2026-07-19. T1 pure engine is complete and
+verified; T2 persistence is next.
 
 ## Goal
 
@@ -110,8 +111,15 @@ boundary strictly needs. "Key" in this boundary means one global tonal center fo
     contested exactly when its pitch class has more than one single-accidental candidate, and
     resolves only when it has exactly one — the single-name classes D, G, and A. The other
     naturals (C, E, F, B) are contested: B#, Fb, E#, and Cb are the genuine line-of-fifths
-    best spellings in extreme plausible keys (e.g. B# in C# major), so they succeed as
+    best spellings in extreme plausible keys (e.g. B# in C# minor), so they succeed as
     `unknown_key`.
+  - A per-key winner is stable only when it is the sole candidate or its normalized
+    best-vs-runner-up margin meets `spelling_close_margin`. Cross-key agreement resolves a
+    note only when every plausible key has the same stable winner. A close/tied winner in any
+    plausible key or different stable winners across keys succeeds as `unknown_key`. A
+    cross-key resolved note stores the minimum per-key confidence (worst-case support);
+    `unknown_key` stores confidence 0.0. This prevents deterministic tie-breaking from
+    manufacturing false agreement while retaining O(24n) work (independent review finding 2).
 - D5 (user-approved): optional `key_override` request field, validated, gate-bypassing,
   persisted as `key_source = override`, fingerprint-participating.
 - D6 (user-approved): spelling context is key proximity + chord consistency within the same
@@ -204,7 +212,7 @@ SpellingNote
   pitch
   symbolic_start_beats (float, as persisted)
   symbolic_duration_beats (float, as persisted)
-  chord_group (int | None)           (persisted same-onset truth; never float equality)
+  chord_group (positive int)         (persisted same-onset truth; never float equality)
   staff ("treble" | "bass" | "unknown")
   voice (int | None)
 
@@ -241,9 +249,10 @@ SpellingResult
   diagnostics
 ```
 
-Errors: `notes_required`, `incomplete_voice_state`, each a typed `SpellingError`. There is no
+Errors: `notes_required`, `incomplete_voice_state`, and `invalid_key_override`, each a typed
+`SpellingError`. There is no
 work-budget error: the histogram is O(n); spelling under a resolved key evaluates at most
-three candidates per note in one ordered pass; the unknown-key agreement check is
+two candidates per note in one ordered pass; the unknown-key agreement check is
 key-proximity-only over at most 24 canonical plausible keys — O(24n), no context branching
 (review: Codex #5). No input can trigger combinatorial blowup.
 
@@ -302,12 +311,16 @@ Key detection:
    Cb major); the only tie, six accidentals (F#/Gb major, D#/Eb minor), breaks flat (Gb major,
    Eb minor), mirroring the engine's flat-before-sharp spelling tie-break so one convention
    holds engine-wide. Fixtures lock every enharmonic pair and both tie cases.
-4. Degenerate-evidence gates run before correlation (review: Codex #9): fewer than
+4. Degenerate-evidence gates run before correlation (review: Codex #9): inputs must have
+   finite starts and positive finite durations. Fewer than
    `key_minimum_notes` notes OR fewer than `key_minimum_distinct_pitch_classes` distinct
    pitch classes (default 3 — eight repeats of one pitch carry evidence of one class)
-   -> `insufficient_notes` without correlating. A zero-variance histogram (perfectly
-   uniform weights) makes Pearson correlation undefined -> typed `ambiguous_key`, never a
-   math error. Fixtures cover single-pitch, uniform, and exactly-at-boundary histograms.
+   -> `insufficient_notes` without correlating. The histogram is normalized by total duration
+   before its centered norm is tested. A zero or near-zero centered norm (perfectly or
+   numerically near-uniform weights) makes Pearson correlation undefined or evidentially
+   unstable -> typed `ambiguous_key`, all 24 keys become plausible, and correlation never
+   runs. Fixtures cover single-pitch, uniform, near-uniform, and exactly-at-boundary
+   histograms.
 5. When the histogram is non-degenerate, the 24-profile correlation always runs (O(n), and
    diagnostics require it); the remaining gate classifies the result: best-vs-runner-up
    margin below `key_ambiguity_margin` -> `ambiguous_key`. Relative-key ties (C major vs
@@ -317,7 +330,9 @@ Key detection:
    unknown reasons — so the four-state persistence check (`confidence SET` for
    estimated-unknown) is always satisfiable by real engine output. When the degenerate
    gates fire before correlation, the confidence is 0.0 (no ranking evidence exists).
-   Documented as uncalibrated.
+   For correlated evidence, `key_confidence = clamp((best_r - runner_up_r) / 2, 0, 1)`;
+   Pearson's full -1..1 span therefore maps to 0..1, and `key_ambiguity_margin` is compared
+   in that same normalized domain. Documented as uncalibrated.
 7. An override adopts the requested key with `source = override`, `confidence = None`.
 
 Enharmonic spelling:
@@ -343,11 +358,16 @@ Enharmonic spelling:
 
    `lof` is the line-of-fifths index; `W_chord` and `W_step` are named engine constants
    (initial values 2.0 and 1.0 line-of-fifths units) persisted with the run.
-   `spelling_confidence` is the best-vs-runner-up penalty gap normalized to [0, 1] by the
-   candidate-set penalty range; `spelling_close_margin` compares against this normalized
-   gap. The margin-attainability fixtures gate these exact values before they freeze.
+   `spelling_confidence` is the non-negative best-vs-runner-up raw penalty gap divided by the
+   fixed, versioned `SPELLING_GAP_FULL_SCALE = 12.0` line-of-fifths units and clamped to
+   [0, 1]. A single-candidate pitch class has confidence 1.0. The denominator is not the
+   observed candidate range: engine v1 has at most two candidates per pitch class, so that
+   denominator would collapse every non-tie to 1.0 (independent review finding 1).
+   `spelling_close_margin` compares against the fixed-scale normalized gap. The
+   margin-attainability fixtures gate these exact values before they freeze.
    Under an unknown key, the D4 agreement check is key-proximity-only: the penalty is the
-   `lof` term alone, per canonical plausible key — no chord or melodic bonuses.
+   `lof` term alone, per canonical plausible key — no chord or melodic bonuses. Agreement
+   uses the stable-winner and worst-case-confidence rule in D4 above.
 3. Candidate ties break deterministically: smaller absolute alter, then flat before sharp.
    (`id` participates in stream ordering only — it cannot distinguish two candidate
    spellings of one note.)
@@ -388,7 +408,8 @@ Typed `PIANOVA_` settings, persisted with every run:
 
 Engine constants (not settings; bumping them bumps `spelling_algorithm_version`):
 `W_chord` (2.0), `W_step` (1.0), the Krumhansl-Kessler profile values, and the canonical
-tonic-naming table.
+tonic-naming table, plus `SPELLING_GAP_FULL_SCALE` (12.0) and the normalized-histogram
+degeneracy tolerance.
 
 These values are evaluation baselines, not universal musical truths; fixtures prove the
 defaults are internally attainable before they are frozen.
@@ -547,13 +568,14 @@ Legend: `***` behavior + edge + error coverage planned; `[->E2E]` live integrati
 - `backend/tests/test_symbolic_spelling.py`
   - deterministic key fixtures: clear major, clear minor, duration-weighting decisive,
     insufficient notes, C-vs-Am ambiguity, margin attainability, tie-break stability,
-    canonical tonic naming (Db-over-C#, B-over-Cb, and the flat-breaking six-accidental
-    ties Gb major and Eb minor), degenerate-evidence gates (single repeated pitch, uniform
-    zero-variance histogram, exactly-at-boundary distinct-class counts), override adoption
-    and validation;
+    canonical tonic naming (Db-over-C#, B-over-Cb, G#-over-Ab minor, Bb-over-A# minor, and
+    the flat-breaking six-accidental ties Gb major and Eb minor), degenerate-evidence gates
+    (single repeated pitch, uniform and near-uniform histograms, exactly-at-boundary note and
+    distinct-class counts), explicit Pearson-span confidence, override adoption and validation;
   - deterministic spelling fixtures: diatonic keys, the D-major F# spec case, ascending and
-    descending chromatic lines, chord third-stacking, close margins, unknown-key selective
-    resolve, unresolved staff/voice notes, B#/Cb octave boundaries including the MIDI 0
+    descending chromatic lines, chord third-stacking, close margins, singleton confidence,
+    unknown-key selective resolve, D4 per-key close/tie rejection and worst-case confidence,
+    unresolved staff/voice notes, B#/Cb octave boundaries including the MIDI 0
     (B#-2) and MIDI 127 (G9) extremes, the stream total-order
     fixture (unknown staff/voice slots), input-order invariance, and the universal round-trip
     property: every spelled note in every fixture maps (step, alter, octave) back to exactly
@@ -626,7 +648,7 @@ No planned path has a silent failure without both handling and a test.
 ## Performance
 
 - One ordered note query; one success transaction; no N+1 access.
-- The histogram is O(n); spelling is one ordered pass with at most three candidates per note.
+- The histogram is O(n); spelling is one ordered pass with at most two candidates per note.
   No combinatorial search exists, so no work-budget rejection is needed.
 - Only the histogram, stream cursors, and decided spellings are held in memory.
 - No file, ML, subprocess, or notation-library work occurs in this stage.
@@ -637,13 +659,13 @@ Documentation is part of every task's definition of done: each task updates the 
 change invalidates in the same commit, per repository process. T6 is a final consistency
 sweep, not the documentation step.
 
-- [ ] **T1 (P1)** — pure engine — implement key detection, contextual spelling, D4 selective
+- [x] **T1 (P1)** — pure engine — implement key detection, contextual spelling, D4 selective
   resolve, diagnostics, and the full deterministic fixture suite, including the
   margin-attainability regressions. The module docstring carries the processing-flow ASCII
   diagram (histogram -> correlation -> gates -> stream-ordered spelling), per repository
   diagram practice.
   - Files: `backend/app/symbolic/`, `backend/tests/test_symbolic_spelling.py`
-  - Verify: `pytest tests/test_symbolic_spelling.py -q`
+  - Verified: 32 focused tests pass with 100% module coverage; the full backend suite passes 148 tests.
 - [ ] **T2 (P1)** — persistence — add key/spelling fields, ownership/revision, and checked
   migration `20260719_0008` with the enumerated four-state key and tri-state spelling checks.
   - Files: `backend/app/models/`, `backend/alembic/versions/`,
@@ -690,7 +712,7 @@ contract, and T3 touches the three upstream service files for the cascade extens
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
-| Codex Review | `/codex review` | Independent 2nd opinion | 1 | ABSORBED | 15 findings: 5 accepted into plan, 2 dissents rejected by user, 1 absorbed no-change |
+| Codex Review | `/codex review` | Independent 2nd opinion | 2 | ABSORBED | Earlier 15-finding pass absorbed; final independent pass found and closed 2 scoring blockers |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 9 issues, 0 critical gaps (2 review findings + 7 cross-model tension points, all resolved) |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
@@ -703,13 +725,16 @@ user decision: milestone reordering / stage merge / voice-prerequisite removal (
 re-litigated settled D2 and milestone order), best-guess-with-flag unknowns (#6/#7,
 re-litigated D4/D6 truthful-unknown doctrine), override durability (#13, session-local page
 is documented deferred scope). Absorbed without change: O(n) workload bound (#15, consistent
-with all shipped stages; input bounded at the media boundary).
+with all shipped stages; input bounded at the media boundary). The final independent pass found
+that observed-range normalization collapses two-candidate spelling confidence and that D4 lacked
+stable-winner/confidence semantics. Both were locked before T1 as the fixed 12-unit scale plus
+unique above-margin cross-key agreement with worst-case support.
 
 **CROSS-MODEL:** Both models agree the stage pattern, cascade design, and typed-unknown
 persistence are sound. Disagreement was strategic (build order, unknown semantics) and was
 resolved by the user in favor of the settled decisions.
 
-**VERDICT:** ENG CLEARED — ready to implement (T1 → T6). Canonical tonic naming, D4
+**VERDICT:** ENG CLEARED — T1 complete; ready to implement (T2 → T6). Canonical tonic naming, D4
 context-free agreement, chord_group/float contract, degenerate gates, and the pointer-coupled
 check are locked into the plan above.
 

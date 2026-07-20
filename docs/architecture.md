@@ -139,6 +139,25 @@ preview, per-staff voice counts, structural diagnostics, provenance, and reuse s
 exposes the stage as an explicit post-interpretation action with pending/error recovery and typed
 unknown evidence.
 
+The pure tonal engine now exists as `app.symbolic.spelling`, but it is not yet a persisted or
+API-visible stage:
+
+```text
+voiced notes with stored float timing + positive chord_group
+  -> duration-weighted pitch-class histogram
+  -> minimum-count, distinct-class, and normalized centered-norm gates
+  -> 24 Krumhansl-Kessler correlations or a validated standard-key override
+  -> canonical global key or typed successful unknown
+  -> deterministic staff/voice/onset/pitch/id spelling pass
+  -> key/chord/melodic scoring, fixed-scale margins, and typed spelling unknowns
+```
+
+The engine never reconstructs fractions or uses float-onset equality; `chord_group` remains the
+persisted same-onset fact. Unknown-key D4 resolution is context-free and conservative: every
+plausible key must produce the same unique above-margin spelling, and the resolved score is the
+worst per-key margin. T2 and T3 still need checked persistence, ownership, invalidation, service,
+and API integration before pitch spelling becomes an available product capability.
+
 Genuine re-quantization invalidates both interpretation and voice state, while genuine
 re-interpretation invalidates voice state. These cascade transactions clear downstream fields and
 run pointers and increment downstream revisions with SQL-relative expressions. Combined with each
@@ -176,6 +195,8 @@ ordinary API tests and startup when the optional environment is absent.
 - Synchronous normalization is simple and visible but holds one API request open; a local worker remains deferred until real file durations justify it.
 - A fresh transcription process isolates failures but reloads TensorFlow for each project. A persistent local worker is deferred until measured throughput justifies its lifecycle complexity.
 - One global tempo and straight sixteenth-note grid provide a testable baseline, but rubato maps, swing, tuplets, compound meter, and inferred downbeats require later evidence and UX.
-- Pitch-contiguous chord splits, passage continuity, and deterministic conflict coloring provide inspectable hand/staff/voice baselines, but non-contiguous handings, key-aware spelling, contrapuntal identity, and learned models require separate evaluation contracts.
+- Pitch-contiguous chord splits, passage continuity, deterministic conflict coloring, and global-key
+  spelling provide inspectable symbolic baselines, but non-contiguous handings, modulation-aware
+  spelling, contrapuntal identity, and learned models require separate evaluation contracts.
 
 Related: [pipeline](pipeline.md), [data model](data-model.md), and [roadmap](roadmap.md).

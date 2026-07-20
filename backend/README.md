@@ -2,8 +2,10 @@
 
 The FastAPI backend owns configuration, persistence, storage, dependency/capability reporting,
 media preparation, typed transcription orchestration, deterministic symbolic timing, bounded
-hand/staff interpretation, and deterministic notation-voice separation. Basic Pitch and
-TensorFlow run from a separate Python 3.11 environment so ordinary API development remains light.
+hand/staff interpretation, and deterministic notation-voice separation. A dependency-free pure
+global-key/enharmonic-spelling engine is implemented and tested but remains intentionally absent
+from the API until its persistence and service boundary land. Basic Pitch and TensorFlow run from
+a separate Python 3.11 environment so ordinary API development remains light.
 
 From `backend/` with the repository `.venv` active:
 

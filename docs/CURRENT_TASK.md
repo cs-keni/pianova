@@ -5,8 +5,9 @@
 Key detection and enharmonic spelling over the verified notation-voice boundary. The execution
 plan is `docs/KEY_SPELLING_PLAN.md`, drafted and locked through gstack plan-eng-review on
 2026-07-19 with a Codex outside-voice pass absorbed (report at the end of the plan file,
-verdict ENG CLEARED, no unresolved decisions). Implementation has not started. The next step
-is Codex's independent review of the locked plan, then T1 (pure engine). The prior voice plan
+verdict ENG CLEARED, no unresolved decisions). Codex's independent review found and closed two
+scoring-contract blockers; T1 pure engine is implemented and verified. The next step is T2
+(checked persistence). The prior voice plan
 `docs/VOICE_SEPARATION_PLAN.md` is complete through T1-T7 and its decisions stay locked.
 
 ## Status
@@ -16,13 +17,16 @@ independent left/right hand and bass/treble notation-staff assignments, competin
 and explicit typed reasons when the evidence remains unknown. Interpreted notes then receive
 staff-scoped notation voices or typed successful unknowns. Genuine upstream recomputation
 atomically invalidates downstream state; matching evidence and settings reuse current results.
+The new pure tonal engine can estimate one global key or return a typed successful unknown, then
+spell notes deterministically with key, chord-group, and melodic context. It has no persistence or
+API integration yet, so the user-visible boundary truthfully remains notation voices.
 
 ## Verified behavior
 
 - Native Windows Python 3.11.9, FFprobe 8.0, and FFmpeg 8.0 are available in the runtime used by FastAPI.
 - The isolated worker resolves Basic Pitch 0.4.0, TensorFlow 2.15.0, NumPy 1.26.4, librosa 0.11.0, pretty-midi 0.2.11, and SciPy 1.17.1.
-- Ruff and formatting pass across the backend; strict mypy passes across 37 application source files.
-- 116 pytest tests pass using temporary Alembic-migrated SQLite databases. The 77 tests that
+- Ruff and formatting pass across the backend; strict mypy passes across 38 application source files.
+- 148 pytest tests pass using temporary Alembic-migrated SQLite databases. The 77 tests that
   predated the helper extraction also pass unmodified when the new helper test file is excluded.
 - Alembic upgrades through revision `20260718_0007`; `alembic check` reports no schema drift.
 - ESLint and TypeScript pass.
@@ -76,7 +80,21 @@ contract (symbolic beats persist as floats, never Fractions), degenerate-evidenc
 correlation, and a pointer-coupled four-state key check. Do not begin MusicXML or rendering
 until the spelling boundary is verified.
 
+## Delivered pure key/spelling engine (T1)
+
+- Duration-weighted global key correlation covers all 24 pitch-class major/minor profiles, with
+  canonical tonic naming, note/distinct-class/near-uniform gates, explicit overrides, and typed
+  successful unknowns.
+- Stored float timing remains the contract; positive `chord_group` is the only simultaneity fact.
+- Resolved-key spelling combines line-of-fifths proximity, chord-third consistency, and
+  chromatic-neighbor stream context in one deterministic total order.
+- Fixed-scale decision margins preserve meaningful close alternatives; D4 requires the same unique
+  above-margin winner across every plausible key and stores worst-case support.
+- Thirty-two focused fixtures with 100% module coverage exercise scoring attainability, every canonical enharmonic key pair,
+  degenerate evidence, D4 agreement, public-domain ground truth, octave edges, MIDI round trips,
+  and input-order invariance.
+
 ## Active blockers
 
-None. The full generated-phrase flow reaches the persisted voice boundary with five resolved
-voice-1 notes and zero unknowns.
+None. T2 can begin. The full generated-phrase flow still reaches the persisted voice boundary with
+five resolved voice-1 notes and zero unknowns; spelling remains intentionally unexposed until T3.

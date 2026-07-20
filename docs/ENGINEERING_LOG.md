@@ -193,3 +193,22 @@
   the voice prerequisite, and best-guess-with-flag unknowns.
 - The plan file now ends with the GSTACK REVIEW REPORT: verdict ENG CLEARED, no unresolved
   decisions. No application code changed this session.
+
+## 2026-07-19 — Pure key detection and enharmonic spelling engine
+
+- Independent pre-implementation review found that normalizing a winner gap by the observed
+  candidate range collapses every non-tie to 1.0 because engine v1 has at most two candidates per
+  pitch class. The locked correction uses a fixed 12-line-of-fifths-unit scale; singleton candidates
+  score 1.0. Key confidence explicitly divides the Pearson best/runner gap by its full span of 2.
+- Context-free D4 agreement now requires the same unique above-margin winner under every plausible
+  key. A resolved note stores the minimum per-key confidence; a tie, close winner, or disagreement
+  succeeds as `unknown_key` with score 0.0. This remains O(24n) and prevents tie-breaking from
+  manufacturing false agreement.
+- Added dependency-free `app.symbolic.spelling`: duration-weighted 24-profile global-key
+  correlation, canonical tonic names, minimum/distinct-class/near-uniform gates, standard-key
+  overrides, deterministic key/chord/melodic spelling, typed successful unknowns, diagnostics, and
+  exact written-name-to-MIDI round trips. Persisted float timing is consumed directly and positive
+  `chord_group` remains the only same-onset fact.
+- Thirty-two focused tests cover every engine branch and invariant at 100% module coverage,
+  including public-domain ground-truth excerpts. Ruff, formatting, strict mypy across 38 application sources, and all 148
+  backend tests pass. Persistence and API availability remain T2-T3.

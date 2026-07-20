@@ -77,6 +77,16 @@ actual-service interleaving tests exercise both commit orders between voice sepa
 interpretation and quantization, proving stale writers lose without losing SQL-relative cascade
 increments.
 
+The pure key/spelling baseline has 32 deterministic tests with 100% module coverage, covering canonical tonic naming for every
+enharmonic standard-key pair, clear major/minor profiles, duration weighting, note-count and
+distinct-class boundaries, uniform and near-uniform evidence, explicit overrides, fixed-scale
+decision margins, diatonic and chromatic spellings, chord context, D4 cross-key agreement, octave
+boundaries, MIDI round trips, total ordering, and input-order invariance. Two hand-authored
+public-domain excerpts assert both the estimated key and every written spelling. Tracked diagnostics
+include the pitch-class histogram, best/runner correlations, plausible keys, candidate sizes,
+context-rule applications, and per-reason unknown counts. These tests prove the deterministic
+contract, not corpus-scale musical accuracy; key and spelling scores remain uncalibrated.
+
 Frontend component coverage gates the action on successful interpretation, disables duplicate
 submits, recovers from an API failure, and renders resolved/unknown totals, per-staff counts,
 decision scores, and typed unknown reasons without presenting unknown notes as complete notation.
@@ -94,6 +104,8 @@ general piano accuracy.
 - One global straight-grid fixture does not evaluate rubato, swing, tuplets, ornamentation, compound meter, or downbeat inference.
 - The deterministic hand/staff fixture proves bounded orchestration and uncertainty display, not real-world assignment accuracy or voice structure.
 - The deterministic voice fixtures prove conflict handling and stable uncertainty, not contrapuntal identity or engraver preference.
+- The deterministic key/spelling fixtures do not evaluate modulation, transcription fragmentation,
+  duplicate-note bias, or corpus-scale engraver preference.
 - Public piano datasets may not represent phone recordings, room acoustics, rubato, or modern Synthesia videos.
 - A single tolerance can hide musically different errors; publish thresholds with every score.
 - Readability requires human judgment alongside automated metrics.

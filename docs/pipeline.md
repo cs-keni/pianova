@@ -14,7 +14,7 @@ The current backend implements secure ingestion, typed media preparation, raw Ba
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
 | Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Implemented |
-| Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Ambiguous key or spelling | Not implemented |
+| Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Missing/stale voice state, ambiguous key or spelling, concurrent update | Pure engine only; persistence/API not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
 | User correction | Note events and score state | Revised symbolic score and artifacts | Invalid edits or regeneration failure | Not implemented |
@@ -111,6 +111,21 @@ The frontend enables `Separate voices` only after interpretation succeeds, preve
 submissions while pending, and preserves recoverable errors for retry. Success shows resolved and
 unknown totals, treble/bass voice 1/2 counts, and bounded hand/staff/voice evidence with the
 uncalibrated decision score and typed reason in separate columns.
+
+## Pure key/spelling contract (not yet API-visible)
+
+`app.symbolic.spelling.spell_notes` consumes immutable voiced notes with persisted float timing and
+positive `chord_group` evidence. It validates finite symbolic values, estimates one global major or
+minor key from a duration-weighted pitch-class histogram and 24 fixed Krumhansl-Kessler profiles,
+or adopts a validated key override. Weak, degenerate, or split evidence succeeds with a typed
+unknown key rather than manufacturing a winner.
+
+Resolved-key spelling uses line-of-fifths proximity, third-stacking within `chord_group`, and a
+chromatic-neighbor stream preference. Decision margins use a fixed 12-unit scale; singleton pitch
+classes score 1.0. Under an unknown key, a spelling resolves only when every plausible key has the
+same unique above-margin winner; otherwise it succeeds as `unknown_key`. The engine is deterministic,
+input-order invariant, O(24n), dependency-free, and covered by 32 focused tests. No project or note
+fields are written until T2 persistence and T3 service integration land.
 
 ## Generated artifacts
 
