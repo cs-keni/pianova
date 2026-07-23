@@ -212,3 +212,18 @@
 - Thirty-two focused tests cover every engine branch and invariant at 100% module coverage,
   including public-domain ground-truth excerpts. Ruff, formatting, strict mypy across 38 application sources, and all 148
   backend tests pass. Persistence and API availability remain T2-T3.
+
+## 2026-07-23 — Checked key and spelling persistence
+
+- Alembic revision `20260719_0008` adds the project key result, current spelling-run ownership,
+  non-negative optimistic revision, and per-note written spelling, confidence, and typed reason.
+- The named project check enumerates unprocessed, estimated, estimated-unknown, and override
+  states and couples every processed state to `current_spelling_run_id`. The named note check
+  enumerates unprocessed, resolved, and unknown spelling states.
+- Separate database checks enforce A-G steps, project tonic alterations in [-1, 1], future-ready
+  note alterations in [-2, 2], reachable octaves in [-2, 9], confidence bounds, and revision
+  bounds.
+- Twenty-seven migrated-SQLite tests prove all valid states, every invalid presence combination,
+  both illegal pointer couplings, and all numeric bounds. A fresh database upgrades through the
+  new revision and Alembic reports no model drift. Ruff, formatting, strict mypy across 38
+  application sources, and all 175 backend tests pass.

@@ -1,7 +1,7 @@
 # Key Detection and Enharmonic Spelling Plan
 
-Status: locked after independent Codex review 2026-07-19. T1 pure engine is complete and
-verified; T2 persistence is next.
+Status: locked after independent Codex review 2026-07-19. T1 pure engine and T2 checked
+persistence are complete and verified; T3 backend integration is next.
 
 ## Goal
 
@@ -666,11 +666,12 @@ sweep, not the documentation step.
   diagram practice.
   - Files: `backend/app/symbolic/`, `backend/tests/test_symbolic_spelling.py`
   - Verified: 32 focused tests pass with 100% module coverage; the full backend suite passes 148 tests.
-- [ ] **T2 (P1)** — persistence — add key/spelling fields, ownership/revision, and checked
+- [x] **T2 (P1)** — persistence — add key/spelling fields, ownership/revision, and checked
   migration `20260719_0008` with the enumerated four-state key and tri-state spelling checks.
   - Files: `backend/app/models/`, `backend/alembic/versions/`,
     `backend/tests/test_spelling_persistence.py`
-  - Verify: `alembic upgrade head && alembic check && pytest tests/test_spelling_persistence.py -q`
+  - Verified: fresh `alembic upgrade head` and `alembic check`; 27 focused persistence tests;
+    full backend gate at 175 tests.
 - [ ] **T3 (P1)** — backend boundary — spelling service on stage_runner, key-override
   validation, a single shared spelling-clear helper consumed by the cascade extensions in
   quantization/interpretation/voice services, interleaving tests, schemas, route, capability
@@ -734,7 +735,7 @@ unique above-margin cross-key agreement with worst-case support.
 persistence are sound. Disagreement was strategic (build order, unknown semantics) and was
 resolved by the user in favor of the settled decisions.
 
-**VERDICT:** ENG CLEARED — T1 complete; ready to implement (T2 → T6). Canonical tonic naming, D4
+**VERDICT:** ENG CLEARED — T1-T2 complete; ready to implement (T3 → T6). Canonical tonic naming, D4
 context-free agreement, chord_group/float contract, degenerate gates, and the pointer-coupled
 check are locked into the plan above.
 

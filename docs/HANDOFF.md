@@ -2,6 +2,12 @@
 
 ## What changed
 
+- 2026-07-23 (T2): added Alembic revision `20260719_0008` and matching ORM state for one
+  project-level key, spelling run ownership/revision, and per-note written spelling. Named
+  database checks enumerate exactly four project key states and three note spelling states,
+  couple processed key state to `current_spelling_run_id`, and enforce step/alter/octave,
+  confidence, and revision bounds. Added 27 migrated-SQLite persistence tests covering all valid
+  states, invalid presence combinations, both illegal pointer couplings, and every bound.
 - 2026-07-19 (T1): independently re-reviewed the locked key/spelling plan and closed two blocking
   scoring gaps before implementation. Key confidence now uses the full Pearson span; spelling
   confidence uses a fixed 12-unit scale instead of the collapsing observed two-candidate range.
@@ -63,8 +69,12 @@
 
 ## Checks run
 
+- T2: Ruff and formatting passed across the backend; strict mypy passed across 38 application
+  sources; all 175 tests passed, including 27 focused persistence tests; a fresh SQLite database
+  upgraded through `20260719_0008`; `alembic check` found no model drift.
 - Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 38 source files;
-  pytest passed 148 tests. The focused spelling suite passed all 32 tests with 100% module coverage.
+  pytest passed 175 tests. The focused spelling engine suite passed all 32 tests with 100% module
+  coverage, and all 27 spelling persistence tests passed.
 - Database: Alembic upgraded through `20260718_0007`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
 - Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, hand/staff interpretation, and notation-voice separation.
@@ -74,8 +84,8 @@
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
 The key-detection and enharmonic-spelling plan is now reviewed and locked at
-`docs/KEY_SPELLING_PLAN.md`; T1 is complete and the next step is T2 checked persistence, followed
-by T3-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
+`docs/KEY_SPELLING_PLAN.md`; T1-T2 are complete and the next step is T3 backend integration,
+followed by T4-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
 broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks

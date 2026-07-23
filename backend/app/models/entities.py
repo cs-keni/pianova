@@ -55,6 +55,26 @@ class VoiceAmbiguityReason(enum.StrEnum):
     CLOSE_ALTERNATIVE = "close_alternative"
 
 
+class KeyMode(enum.StrEnum):
+    MAJOR = "major"
+    MINOR = "minor"
+
+
+class KeySource(enum.StrEnum):
+    ESTIMATED = "estimated"
+    OVERRIDE = "override"
+
+
+class KeyAmbiguityReason(enum.StrEnum):
+    INSUFFICIENT_NOTES = "insufficient_notes"
+    AMBIGUOUS_KEY = "ambiguous_key"
+
+
+class SpellingAmbiguityReason(enum.StrEnum):
+    UNKNOWN_KEY = "unknown_key"
+    CLOSE_ALTERNATIVE = "close_alternative"
+
+
 class DetectionSource(enum.StrEnum):
     AUDIO = "audio"
     VIDEO = "video"
@@ -102,6 +122,41 @@ class Project(Base):
             "voice_revision >= 0",
             name="ck_projects_voice_revision_nonnegative",
         ),
+        CheckConstraint(
+            "spelling_revision >= 0",
+            name="ck_projects_spelling_revision_nonnegative",
+        ),
+        CheckConstraint(
+            "key_tonic_step IS NULL OR key_tonic_step IN ('A', 'B', 'C', 'D', 'E', 'F', 'G')",
+            name="ck_projects_key_tonic_step",
+        ),
+        CheckConstraint(
+            "key_tonic_alter IS NULL OR key_tonic_alter BETWEEN -1 AND 1",
+            name="ck_projects_key_tonic_alter",
+        ),
+        CheckConstraint(
+            "key_confidence IS NULL OR key_confidence BETWEEN 0 AND 1",
+            name="ck_projects_key_confidence",
+        ),
+        CheckConstraint(
+            "(key_tonic_step IS NULL AND key_tonic_alter IS NULL "
+            "AND key_mode IS NULL AND key_confidence IS NULL "
+            "AND key_ambiguity_reason IS NULL AND key_source IS NULL "
+            "AND current_spelling_run_id IS NULL) OR "
+            "(key_tonic_step IS NOT NULL AND key_tonic_alter IS NOT NULL "
+            "AND key_mode IS NOT NULL AND key_confidence IS NOT NULL "
+            "AND key_ambiguity_reason IS NULL AND key_source = 'ESTIMATED' "
+            "AND current_spelling_run_id IS NOT NULL) OR "
+            "(key_tonic_step IS NULL AND key_tonic_alter IS NULL "
+            "AND key_mode IS NULL AND key_confidence IS NOT NULL "
+            "AND key_ambiguity_reason IS NOT NULL AND key_source = 'ESTIMATED' "
+            "AND current_spelling_run_id IS NOT NULL) OR "
+            "(key_tonic_step IS NOT NULL AND key_tonic_alter IS NOT NULL "
+            "AND key_mode IS NOT NULL AND key_confidence IS NULL "
+            "AND key_ambiguity_reason IS NULL AND key_source = 'OVERRIDE' "
+            "AND current_spelling_run_id IS NOT NULL)",
+            name="ck_projects_key_state",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -135,6 +190,20 @@ class Project(Base):
     interpretation_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     current_voice_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     voice_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    key_tonic_step: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    key_tonic_alter: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    key_mode: Mapped[KeyMode | None] = mapped_column(
+        Enum(KeyMode, native_enum=False), nullable=True
+    )
+    key_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    key_ambiguity_reason: Mapped[KeyAmbiguityReason | None] = mapped_column(
+        Enum(KeyAmbiguityReason, native_enum=False), nullable=True
+    )
+    key_source: Mapped[KeySource | None] = mapped_column(
+        Enum(KeySource, native_enum=False), nullable=True
+    )
+    current_spelling_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    spelling_revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utc_now, onupdate=utc_now
@@ -177,6 +246,34 @@ class NoteEvent(Base):
             "AND voice_ambiguity_reason IS NOT NULL)",
             name="ck_note_events_voice_state",
         ),
+        CheckConstraint(
+            "spelled_step IS NULL OR spelled_step IN ('A', 'B', 'C', 'D', 'E', 'F', 'G')",
+            name="ck_note_events_spelled_step",
+        ),
+        CheckConstraint(
+            "spelled_alter IS NULL OR spelled_alter BETWEEN -2 AND 2",
+            name="ck_note_events_spelled_alter",
+        ),
+        CheckConstraint(
+            "spelled_octave IS NULL OR spelled_octave BETWEEN -2 AND 9",
+            name="ck_note_events_spelled_octave",
+        ),
+        CheckConstraint(
+            "spelling_confidence IS NULL OR spelling_confidence BETWEEN 0 AND 1",
+            name="ck_note_events_spelling_confidence",
+        ),
+        CheckConstraint(
+            "(spelled_step IS NULL AND spelled_alter IS NULL "
+            "AND spelled_octave IS NULL AND spelling_confidence IS NULL "
+            "AND spelling_ambiguity_reason IS NULL) OR "
+            "(spelled_step IS NOT NULL AND spelled_alter IS NOT NULL "
+            "AND spelled_octave IS NOT NULL AND spelling_confidence IS NOT NULL "
+            "AND spelling_ambiguity_reason IS NULL) OR "
+            "(spelled_step IS NULL AND spelled_alter IS NULL "
+            "AND spelled_octave IS NULL AND spelling_confidence IS NOT NULL "
+            "AND spelling_ambiguity_reason IS NOT NULL)",
+            name="ck_note_events_spelling_state",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -206,6 +303,13 @@ class NoteEvent(Base):
     voice_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     voice_ambiguity_reason: Mapped[VoiceAmbiguityReason | None] = mapped_column(
         Enum(VoiceAmbiguityReason, native_enum=False), nullable=True
+    )
+    spelled_step: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    spelled_alter: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    spelled_octave: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    spelling_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    spelling_ambiguity_reason: Mapped[SpellingAmbiguityReason | None] = mapped_column(
+        Enum(SpellingAmbiguityReason, native_enum=False), nullable=True
     )
     source: Mapped[DetectionSource] = mapped_column(
         Enum(DetectionSource, native_enum=False), default=DetectionSource.AUDIO
