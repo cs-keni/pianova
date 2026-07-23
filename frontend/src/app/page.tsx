@@ -8,8 +8,10 @@ import {
   type ConfigResponse,
   type HealthResponse,
   type InterpretationResponse,
+  type KeyOverride,
   type Project,
   type QuantizationResponse,
+  type SpellingResponse,
   type TranscriptionResponse,
   type VoiceSeparationResponse,
 } from "@/lib/api";
@@ -44,6 +46,119 @@ function formatReason(reason: string | null): string {
   return reason ? reason.replaceAll("_", " ") : "Resolved";
 }
 
+function formatAccidental(alter: number): string {
+  if (alter === -2) return "♭♭";
+  if (alter === -1) return "♭";
+  if (alter === 1) return "♯";
+  if (alter === 2) return "♯♯";
+  return "";
+}
+
+function formatSpelling(
+  step: string | null,
+  alter: number | null,
+  octave: number | null,
+): string {
+  if (step == null || alter == null || octave == null) return "Unknown";
+  return `${step}${formatAccidental(alter)}${octave}`;
+}
+
+const KEY_OPTIONS: { value: string; label: string; key: KeyOverride }[] = [
+  ["Cb major", "C♭ major", "C", -1, "major"],
+  ["Gb major", "G♭ major", "G", -1, "major"],
+  ["Db major", "D♭ major", "D", -1, "major"],
+  ["Ab major", "A♭ major", "A", -1, "major"],
+  ["Eb major", "E♭ major", "E", -1, "major"],
+  ["Bb major", "B♭ major", "B", -1, "major"],
+  ["F major", "F major", "F", 0, "major"],
+  ["C major", "C major", "C", 0, "major"],
+  ["G major", "G major", "G", 0, "major"],
+  ["D major", "D major", "D", 0, "major"],
+  ["A major", "A major", "A", 0, "major"],
+  ["E major", "E major", "E", 0, "major"],
+  ["B major", "B major", "B", 0, "major"],
+  ["F# major", "F♯ major", "F", 1, "major"],
+  ["C# major", "C♯ major", "C", 1, "major"],
+  ["Ab minor", "A♭ minor", "A", -1, "minor"],
+  ["Eb minor", "E♭ minor", "E", -1, "minor"],
+  ["Bb minor", "B♭ minor", "B", -1, "minor"],
+  ["F minor", "F minor", "F", 0, "minor"],
+  ["C minor", "C minor", "C", 0, "minor"],
+  ["G minor", "G minor", "G", 0, "minor"],
+  ["D minor", "D minor", "D", 0, "minor"],
+  ["A minor", "A minor", "A", 0, "minor"],
+  ["E minor", "E minor", "E", 0, "minor"],
+  ["B minor", "B minor", "B", 0, "minor"],
+  ["F# minor", "F♯ minor", "F", 1, "minor"],
+  ["C# minor", "C♯ minor", "C", 1, "minor"],
+  ["G# minor", "G♯ minor", "G", 1, "minor"],
+  ["D# minor", "D♯ minor", "D", 1, "minor"],
+  ["A# minor", "A♯ minor", "A", 1, "minor"],
+].map(([value, label, tonic_step, tonic_alter, mode]) => ({
+  value: String(value),
+  label: String(label),
+  key: {
+    tonic_step: tonic_step as KeyOverride["tonic_step"],
+    tonic_alter: tonic_alter as KeyOverride["tonic_alter"],
+    mode: mode as KeyOverride["mode"],
+  },
+}));
+
+interface SpellingControlsProps {
+  selection: string;
+  pending: boolean;
+  emphasizeOverride: boolean;
+  onSelectionChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}
+
+function SpellingControls({
+  selection,
+  pending,
+  emphasizeOverride,
+  onSelectionChange,
+  onSubmit,
+}: SpellingControlsProps) {
+  return (
+    <form
+      className={`${styles.spellingForm} ${emphasizeOverride ? styles.overrideNeeded : ""}`}
+      onSubmit={onSubmit}
+    >
+      <div>
+        <label htmlFor="key-override">Key signature</label>
+        <select
+          id="key-override"
+          value={selection}
+          onChange={(event) => onSelectionChange(event.target.value)}
+        >
+          <option value="">Auto-detect</option>
+          <optgroup label="Major">
+            {KEY_OPTIONS.filter((option) => option.key.mode === "major").map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Minor">
+            {KEY_OPTIONS.filter((option) => option.key.mode === "minor").map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </div>
+      <p className={styles.help}>
+        Leave this on auto-detect, or choose a key to resolve uncertain or incorrect spellings.
+        Clear the selection to estimate again.
+      </p>
+      <button className={styles.primaryButton} disabled={pending}>
+        {pending ? "Detecting key and spelling notes…" : "Detect key & spell notes"}
+      </button>
+    </form>
+  );
+}
+
 export default function Home() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [config, setConfig] = useState<ConfigResponse | null>(null);
@@ -63,6 +178,9 @@ export default function Home() {
   const [interpretation, setInterpretation] = useState<InterpretationResponse | null>(null);
   const [separatingVoices, setSeparatingVoices] = useState(false);
   const [voiceSeparation, setVoiceSeparation] = useState<VoiceSeparationResponse | null>(null);
+  const [spelling, setSpelling] = useState<SpellingResponse | null>(null);
+  const [spellingNotes, setSpellingNotes] = useState(false);
+  const [keySelection, setKeySelection] = useState("");
   const [tempoOverride, setTempoOverride] = useState("");
   const [meter, setMeter] = useState("4/4");
   const [measureOrigin, setMeasureOrigin] = useState("");
@@ -211,6 +329,26 @@ export default function Home() {
     }
   }
 
+  async function spellProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project || !voiceSeparation || spellingNotes) return;
+    setSpellingNotes(true);
+    setFormError(null);
+    try {
+      const selectedKey = KEY_OPTIONS.find((option) => option.value === keySelection)?.key;
+      const response = await api.spell(
+        project.id,
+        selectedKey ? { key_override: selectedKey } : {},
+      );
+      setProject(response.project);
+      setSpelling(response);
+    } catch (error) {
+      setFormError(errorMessage(error));
+    } finally {
+      setSpellingNotes(false);
+    }
+  }
+
   const mediaCapability = health?.capabilities.find(
     (capability) => capability.key === "media_normalization",
   );
@@ -266,7 +404,9 @@ export default function Home() {
             <div>
               <p className={styles.step}>
                 Step{" "}
-                {voiceSeparation
+                {spelling
+                  ? "8"
+                  : voiceSeparation
                   ? "7"
                   : interpretation
                     ? "6"
@@ -279,10 +419,12 @@ export default function Home() {
                         : project
                           ? "2"
                           : "1"}{" "}
-                of 7
+                of 8
               </p>
               <h3 id="workflow-title">
-                {voiceSeparation
+                {spelling
+                  ? "Key and pitch spelling ready"
+                  : voiceSeparation
                   ? "Notation voices ready"
                   : interpretation
                     ? "Hands and staves assigned"
@@ -318,6 +460,119 @@ export default function Home() {
                 {creating ? "Creating…" : "Create local project"}
               </button>
             </form>
+          ) : spelling ? (
+            <div className={styles.quantizationResult} role="status">
+              <div className={styles.success}>
+                <span aria-hidden="true">✓</span>
+                <div>
+                  <h4>Key detection and pitch spelling ready</h4>
+                  <p>
+                    {spelling.diagnostics.resolved_count} resolved ·{" "}
+                    {spelling.diagnostics.unknown_count} unknown
+                  </p>
+                  <p>
+                    Unknown spellings remain evidence for review. Cleaned MIDI, MusicXML, and
+                    score rendering have not started.
+                  </p>
+                </div>
+              </div>
+              <div
+                className={`${styles.keyCard} ${
+                  spelling.key.ambiguity_reason ? styles.keyUnknown : ""
+                }`}
+              >
+                <p className={styles.eyebrow}>
+                  {spelling.key.source === "override" ? "User-chosen key" : "Estimated key"}
+                </p>
+                <h4>
+                  {spelling.key.tonic_step != null &&
+                  spelling.key.tonic_alter != null &&
+                  spelling.key.mode != null
+                    ? `${spelling.key.tonic_step}${formatAccidental(
+                        spelling.key.tonic_alter,
+                      )} ${spelling.key.mode}`
+                    : "Key uncertain"}
+                </h4>
+                <p>
+                  {spelling.key.ambiguity_reason
+                    ? `${formatReason(spelling.key.ambiguity_reason)}. Choose the intended key below to respell these notes.`
+                    : spelling.key.confidence == null
+                      ? "Applied as an explicit override."
+                      : `${Math.round(spelling.key.confidence * 100)}% uncalibrated decision score · ${
+                          spelling.key.key_signature_fifths
+                        } fifths`}
+                </p>
+              </div>
+              <dl className={styles.timingDiagnostics}>
+                <div>
+                  <dt>Spellings</dt>
+                  <dd>
+                    {spelling.diagnostics.resolved_count} resolved ·{" "}
+                    {spelling.diagnostics.unknown_count} unknown
+                  </dd>
+                </div>
+                <div>
+                  <dt>Unknown-key notes</dt>
+                  <dd>{spelling.diagnostics.unknown_key_count}</dd>
+                </div>
+                <div>
+                  <dt>Close alternatives</dt>
+                  <dd>{spelling.diagnostics.close_alternative_count}</dd>
+                </div>
+                <div>
+                  <dt>Processor</dt>
+                  <dd>{spelling.provenance.processor_version}</dd>
+                </div>
+              </dl>
+              <div className={styles.notePreview}>
+                <h4>Written pitch evidence</h4>
+                <div className={styles.noteTableWrap}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Detected pitch</th>
+                        <th>Written pitch</th>
+                        <th>Grid onset</th>
+                        <th>Hand</th>
+                        <th>Staff</th>
+                        <th>Voice</th>
+                        <th>Decision score</th>
+                        <th>Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spelling.preview_notes.map((note) => (
+                        <tr key={note.id}>
+                          <td>
+                            {formatPitch(note.pitch)} <small>MIDI {note.pitch}</small>
+                          </td>
+                          <td>
+                            {formatSpelling(
+                              note.spelled_step,
+                              note.spelled_alter,
+                              note.spelled_octave,
+                            )}
+                          </td>
+                          <td>{note.symbolic_start_beats.toFixed(2)}</td>
+                          <td>{formatAssignment(note.hand)}</td>
+                          <td>{formatAssignment(note.staff)}</td>
+                          <td>{note.voice == null ? "Unknown" : `Voice ${note.voice}`}</td>
+                          <td>{Math.round(note.spelling_confidence * 100)}%</td>
+                          <td>{formatReason(note.spelling_ambiguity_reason)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <SpellingControls
+                selection={keySelection}
+                pending={spellingNotes}
+                emphasizeOverride={spelling.key.ambiguity_reason != null}
+                onSelectionChange={setKeySelection}
+                onSubmit={spellProject}
+              />
+            </div>
           ) : voiceSeparation ? (
             <div className={styles.quantizationResult} role="status">
               <div className={styles.success}>
@@ -394,6 +649,13 @@ export default function Home() {
                   </table>
                 </div>
               </div>
+              <SpellingControls
+                selection={keySelection}
+                pending={spellingNotes}
+                emphasizeOverride={false}
+                onSelectionChange={setKeySelection}
+                onSubmit={spellProject}
+              />
             </div>
           ) : interpretation ? (
             <div className={styles.quantizationResult} role="status">

@@ -7,7 +7,7 @@ plan is `docs/KEY_SPELLING_PLAN.md`, drafted and locked through gstack plan-eng-
 2026-07-19 with a Codex outside-voice pass absorbed (report at the end of the plan file,
 verdict ENG CLEARED, no unresolved decisions). Codex's independent review found and closed two
 scoring-contract blockers; T1 pure engine, T2 checked persistence, and T3 backend integration are
-implemented and verified. The next step is T4 (frontend workflow). The prior voice plan
+implemented and verified through T4. The next step is T5 (live browser verification). The prior voice plan
 `docs/VOICE_SEPARATION_PLAN.md` is complete through T1-T7 and its decisions stay locked.
 
 ## Status
@@ -21,7 +21,8 @@ The new pure tonal engine can estimate one global key or return a typed successf
 spell notes deterministically with key, chord-group, and melodic context. Its exact four-state
 project key and tri-state note spelling contracts now persist through Alembic. The service/API
 boundary is available with hardened reuse, override recovery, and concurrency-safe upstream
-invalidation. The browser UI still truthfully ends at notation voices until T4.
+invalidation. The browser UI now exposes the same contract with an automatic/override selector,
+typed key card, bounded spelling evidence, and truthful downstream deferrals.
 
 ## Verified behavior
 
@@ -123,8 +124,21 @@ until the spelling boundary is verified.
 - Unknown key and spelling evidence remains a successful typed result. Invalid overrides are 422;
   missing/stale voices and conflicts are structured 409s.
 
+## Delivered key/spelling frontend boundary (T4)
+
+- `Detect key & spell notes` appears only after successful voice separation and prevents duplicate
+  submission while pending.
+- The 30 standard major/minor signatures are available as an optional override. Blank requests
+  estimate; selecting a key respells; clearing it returns to estimation.
+- Estimated, estimated-unknown, and user-chosen keys are labeled distinctly. Unknown-key results
+  emphasize the recovery selector instead of presenting a guessed key.
+- The result separates written pitch, uncalibrated score, and typed reason, and explicitly states
+  that cleaned MIDI, MusicXML, and rendering have not started.
+- The component suite covers failure/retry, pending state, unknown recovery, override after a
+  result, clearing back to automatic, and request payloads.
+
 ## Active blockers
 
-None. T4 can begin. The full generated-phrase browser flow still reaches the persisted voice
-boundary with five resolved voice-1 notes and zero unknowns; the backend spelling endpoint is
-ready for the UI.
+None. T5 can begin. The generated-phrase browser flow must now be extended through the new
+spelling UI with both the locked insufficient-evidence override path and a clear-key automatic
+estimate.

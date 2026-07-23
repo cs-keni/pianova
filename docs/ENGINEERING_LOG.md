@@ -243,3 +243,16 @@
 - Nine failure/interleaving tests cover rollback, failed audit persistence, direct spelling
   conflicts, and both commit orders against all three upstream stages. The complete backend gate
   passes Ruff, formatting, strict mypy across 40 application sources, and 194 tests.
+
+## 2026-07-23 — Key and spelling frontend boundary
+
+- Added typed frontend contracts and the explicit `Detect key & spell notes` stage after notation
+  voices. The same selector supports automatic estimation, all 30 standard major/minor
+  signatures, override-after-result, and clearing back to automatic.
+- Unknown keys remain successful evidence and emphasize the selector for recovery. Estimated,
+  unknown, and user-chosen keys use distinct copy; note rows separate written pitch, uncalibrated
+  score, and typed reason.
+- Pending requests prevent duplicate submission, failures retain an enabled retry, and the
+  terminal copy truthfully defers cleaned MIDI, MusicXML, and rendering.
+- ESLint, TypeScript, and five component tests pass. The main workflow test covers failure/retry,
+  unknown-key recovery, override payloads, override-after-result, and clearing the selector.

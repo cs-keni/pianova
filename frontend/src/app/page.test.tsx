@@ -40,6 +40,12 @@ const health = {
       state: "available",
       reason: "Staff-scoped forced notation voices with explicit uncertainty are ready.",
     },
+    {
+      key: "pitch_spelling",
+      label: "Key detection and pitch spelling",
+      state: "available",
+      reason: "Global key detection and contextual enharmonic spelling are ready.",
+    },
   ],
 };
 
@@ -73,6 +79,14 @@ const project = {
   interpretation_revision: 0,
   current_voice_run_id: null,
   voice_revision: 0,
+  key_tonic_step: null,
+  key_tonic_alter: null,
+  key_mode: null,
+  key_confidence: null,
+  key_ambiguity_reason: null,
+  key_source: null,
+  current_spelling_run_id: null,
+  spelling_revision: 0,
   media_streams: [],
   created_at: "2026-07-14T00:00:00Z",
   updated_at: "2026-07-14T00:00:00Z",
@@ -107,7 +121,8 @@ describe("Pianova home", () => {
     expect(screen.getByText("Tempo and rhythm quantization")).toBeInTheDocument();
     expect(screen.getByText("Hand and staff assignment")).toBeInTheDocument();
     expect(screen.getByText("Notation voice separation")).toBeInTheDocument();
-    expect(screen.getAllByText("available")).toHaveLength(5);
+    expect(screen.getByText("Key detection and pitch spelling")).toBeInTheDocument();
+    expect(screen.getAllByText("available")).toHaveLength(6);
   });
 
   it("creates a project once and advances to upload", async () => {
@@ -220,13 +235,17 @@ describe("Pianova home", () => {
       quantization_revision: 1,
       interpretation_revision: 1,
       voice_revision: 1,
+      spelling_revision: 1,
     };
     let quantizationAttempts = 0;
     let interpretationAttempts = 0;
     let voiceAttempts = 0;
+    let spellingAttempts = 0;
     let resolveInterpretation!: (response: Response) => void;
     let resolveVoices!: (response: Response) => void;
-    vi.mocked(fetch).mockImplementation((input) => {
+    let resolveSpelling!: (response: Response) => void;
+    const spellingBodies: unknown[] = [];
+    vi.mocked(fetch).mockImplementation((input, init) => {
       const url = input.toString();
       if (url.endsWith("/api/health")) return Promise.resolve(jsonResponse(health));
       if (url.endsWith("/api/config")) return Promise.resolve(jsonResponse(config));
@@ -474,6 +493,88 @@ describe("Pianova home", () => {
           }),
         );
       }
+      if (url.endsWith("/api/projects/project-1/spell")) {
+        spellingAttempts += 1;
+        spellingBodies.push(JSON.parse(String(init?.body ?? "{}")));
+        if (spellingAttempts === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveSpelling = resolve;
+          });
+        }
+        const overridden = spellingAttempts === 3;
+        return Promise.resolve(
+          jsonResponse({
+            project: {
+              ...quantizedProject,
+              current_interpretation_run_id: 4,
+              interpretation_revision: 2,
+              current_voice_run_id: 5,
+              voice_revision: 3,
+              key_tonic_step: overridden ? "C" : null,
+              key_tonic_alter: overridden ? 0 : null,
+              key_mode: overridden ? "major" : null,
+              key_confidence: overridden ? null : 0,
+              key_ambiguity_reason: overridden ? null : "insufficient_notes",
+              key_source: overridden ? "override" : "estimated",
+              current_spelling_run_id: 5 + spellingAttempts,
+              spelling_revision: 3 + spellingAttempts,
+            },
+            key: {
+              source: overridden ? "override" : "estimated",
+              tonic_step: overridden ? "C" : null,
+              tonic_alter: overridden ? 0 : null,
+              mode: overridden ? "major" : null,
+              confidence: overridden ? null : 0,
+              ambiguity_reason: overridden ? null : "insufficient_notes",
+              key_signature_fifths: overridden ? 0 : null,
+            },
+            note_count: 1,
+            preview_notes: [
+              {
+                id: 1,
+                pitch: 69,
+                symbolic_start_beats: 0,
+                symbolic_duration_beats: 0.5,
+                chord_group: 1,
+                hand: "unknown",
+                staff: "treble",
+                voice: null,
+                spelled_step: overridden ? "A" : null,
+                spelled_alter: overridden ? 0 : null,
+                spelled_octave: overridden ? 4 : null,
+                spelling_confidence: overridden ? 0.83 : 0,
+                spelling_ambiguity_reason: overridden ? null : "unknown_key",
+              },
+            ],
+            diagnostics: {
+              pitch_class_histogram: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0, 0],
+              best_key: null,
+              best_key_correlation: null,
+              runner_up_key: null,
+              runner_up_key_correlation: null,
+              key_correlation_margin: 0,
+              plausible_keys: [],
+              candidate_set_sizes: [1],
+              chord_consistency_application_count: 0,
+              melodic_rule_application_count: 0,
+              resolved_count: overridden ? 1 : 0,
+              unknown_count: overridden ? 0 : 1,
+              unknown_key_count: overridden ? 0 : 1,
+              close_alternative_count: 0,
+            },
+            provenance: {
+              run_id: 5 + spellingAttempts,
+              processor_name: "pianova_key_pitch_spelling",
+              processor_version: "1.0.0",
+              runtime: "python 3.11.9",
+              voice_run_id: 5,
+              input_fingerprint: "spell123",
+              configuration: {},
+            },
+            reused: false,
+          }),
+        );
+      }
       return Promise.reject(new Error(`Unexpected request: ${url}`));
     });
     const user = userEvent.setup();
@@ -594,5 +695,72 @@ describe("Pianova home", () => {
       ),
     ).toBeInTheDocument();
     expect(voiceAttempts).toBe(2);
+
+    const spellButton = screen.getByRole("button", { name: "Detect key & spell notes" });
+    expect(screen.getByLabelText("Key signature")).toHaveValue("");
+    await user.click(spellButton);
+    expect(
+      screen.getByRole("button", { name: "Detecting key and spelling notes…" }),
+    ).toBeDisabled();
+    await user.click(
+      screen.getByRole("button", { name: "Detecting key and spelling notes…" }),
+    );
+    expect(spellingAttempts).toBe(1);
+    resolveSpelling(
+      jsonResponse(
+        {
+          error: {
+            code: "spelling_failed",
+            message: "The project key and written pitches could not be produced.",
+          },
+        },
+        500,
+      ),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The project key and written pitches could not be produced.",
+    );
+    await user.click(screen.getByRole("button", { name: "Detect key & spell notes" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Key detection and pitch spelling ready",
+        level: 4,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Key uncertain")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "insufficient notes. Choose the intended key below to respell these notes.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("unknown key")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Unknown spellings remain evidence for review. Cleaned MIDI, MusicXML, and score rendering have not started.",
+      ),
+    ).toBeInTheDocument();
+    expect(spellingBodies[1]).toEqual({});
+
+    await user.selectOptions(screen.getByLabelText("Key signature"), "C major");
+    await user.click(screen.getByRole("button", { name: "Detect key & spell notes" }));
+
+    expect(await screen.findByText("User-chosen key")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "C major", level: 4 })).toBeInTheDocument();
+    expect(screen.getByText("Applied as an explicit override.")).toBeInTheDocument();
+    expect(screen.getByText("83%")).toBeInTheDocument();
+    expect(spellingBodies[2]).toEqual({
+      key_override: {
+        tonic_step: "C",
+        tonic_alter: 0,
+        mode: "major",
+      },
+    });
+
+    await user.selectOptions(screen.getByLabelText("Key signature"), "");
+    await user.click(screen.getByRole("button", { name: "Detect key & spell notes" }));
+    expect(await screen.findByText("Key uncertain")).toBeInTheDocument();
+    expect(spellingBodies[3]).toEqual({});
+    expect(spellingAttempts).toBe(4);
   });
 });

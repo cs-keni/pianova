@@ -1,7 +1,7 @@
 # Key Detection and Enharmonic Spelling Plan
 
-Status: locked after independent Codex review 2026-07-19. T1 pure engine, T2 checked
-persistence, and T3 backend integration are complete and verified; T4 frontend is next.
+Status: locked after independent Codex review 2026-07-19. T1-T4 are complete and verified;
+T5 live browser verification is next.
 
 ## Goal
 
@@ -679,10 +679,10 @@ sweep, not the documentation step.
   - Files: `backend/app/services/`, `backend/app/api/`, `backend/app/schemas/`, `backend/tests/`
   - Verified: Ruff, formatting, strict mypy across 40 application sources, and all 194 backend
     tests.
-- [ ] **T4 (P2)** — frontend — spell action, key card, unknown-key selector with override
+- [x] **T4 (P2)** — frontend — spell action, key card, unknown-key selector with override
   resubmit, spelling preview columns, truthful copy, and component tests.
   - Files: `frontend/src/`
-  - Verify: `npm run lint && npm run typecheck && npm test`
+  - Verified: ESLint, TypeScript, and five component tests covering the full staged workflow.
 - [ ] **T5 (P1)** — live verification — extend the real browser flow through spelling with the
   locked unknown-key + override assertion contract.
   - Files: `frontend/e2e/`
@@ -736,7 +736,7 @@ unique above-margin cross-key agreement with worst-case support.
 persistence are sound. Disagreement was strategic (build order, unknown semantics) and was
 resolved by the user in favor of the settled decisions.
 
-**VERDICT:** ENG CLEARED — T1-T3 complete; ready to implement (T4 → T6). Canonical tonic naming, D4
+**VERDICT:** ENG CLEARED — T1-T4 complete; ready to implement (T5 → T6). Canonical tonic naming, D4
 context-free agreement, chord_group/float contract, degenerate gates, and the pointer-coupled
 check are locked into the plan above.
 

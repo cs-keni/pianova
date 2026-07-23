@@ -53,6 +53,14 @@ export interface Project {
   interpretation_revision: number;
   current_voice_run_id: number | null;
   voice_revision: number;
+  key_tonic_step: string | null;
+  key_tonic_alter: number | null;
+  key_mode: "major" | "minor" | null;
+  key_confidence: number | null;
+  key_ambiguity_reason: KeyAmbiguityReason | null;
+  key_source: "estimated" | "override" | null;
+  current_spelling_run_id: number | null;
+  spelling_revision: number;
   media_streams: MediaStream[];
   created_at: string;
   updated_at: string;
@@ -289,6 +297,82 @@ export interface VoiceSeparationResponse {
   reused: boolean;
 }
 
+export type KeyAmbiguityReason = "insufficient_notes" | "ambiguous_key";
+export type SpellingAmbiguityReason = "unknown_key" | "close_alternative";
+
+export interface KeyOverride {
+  tonic_step: "A" | "B" | "C" | "D" | "E" | "F" | "G";
+  tonic_alter: -1 | 0 | 1;
+  mode: "major" | "minor";
+}
+
+export interface SpellingRequest {
+  key_override?: KeyOverride;
+}
+
+export interface KeyResult {
+  source: "estimated" | "override";
+  tonic_step: string | null;
+  tonic_alter: number | null;
+  mode: "major" | "minor" | null;
+  confidence: number | null;
+  ambiguity_reason: KeyAmbiguityReason | null;
+  key_signature_fifths: number | null;
+}
+
+export interface SpelledNote {
+  id: number;
+  pitch: number;
+  symbolic_start_beats: number;
+  symbolic_duration_beats: number;
+  chord_group: number;
+  hand: "left" | "right" | "unknown";
+  staff: "treble" | "bass" | "unknown";
+  voice: number | null;
+  spelled_step: string | null;
+  spelled_alter: number | null;
+  spelled_octave: number | null;
+  spelling_confidence: number;
+  spelling_ambiguity_reason: SpellingAmbiguityReason | null;
+}
+
+export interface SpellingDiagnostics {
+  pitch_class_histogram: number[];
+  best_key: string | null;
+  best_key_correlation: number | null;
+  runner_up_key: string | null;
+  runner_up_key_correlation: number | null;
+  key_correlation_margin: number;
+  plausible_keys: string[];
+  candidate_set_sizes: number[];
+  chord_consistency_application_count: number;
+  melodic_rule_application_count: number;
+  resolved_count: number;
+  unknown_count: number;
+  unknown_key_count: number;
+  close_alternative_count: number;
+}
+
+export interface SpellingProvenance {
+  run_id: number;
+  processor_name: string;
+  processor_version: string;
+  runtime: string;
+  voice_run_id: number;
+  input_fingerprint: string;
+  configuration: Record<string, unknown>;
+}
+
+export interface SpellingResponse {
+  project: Project;
+  key: KeyResult;
+  note_count: number;
+  preview_notes: SpelledNote[];
+  diagnostics: SpellingDiagnostics;
+  provenance: SpellingProvenance;
+  reused: boolean;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -369,5 +453,11 @@ export const api = {
   separateVoices: (projectId: string) =>
     request<VoiceSeparationResponse>(`/api/projects/${projectId}/separate-voices`, {
       method: "POST",
+    }),
+  spell: (projectId: string, payload: SpellingRequest) =>
+    request<SpellingResponse>(`/api/projects/${projectId}/spell`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     }),
 };

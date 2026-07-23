@@ -2,6 +2,12 @@
 
 ## What changed
 
+- 2026-07-23 (T4): extended the Next.js staged workflow through key detection and written pitch.
+  Added typed API models, the explicit post-voice action, pending/error recovery, duplicate-submit
+  prevention, all 30 standard-signature overrides, clearing back to automatic estimation, distinct
+  estimated/unknown/user-chosen key cards, bounded spelling evidence, and truthful cleaned-MIDI /
+  MusicXML / rendering deferrals. The existing five-test component suite now exercises the full
+  flow including failure/retry, unknown-key recovery, override-after-result, and request payloads.
 - 2026-07-23 (T3): added the `pitch_spelling` service/API boundary, typed request/response
   schemas, settings, and available capability. The service validates current voice ownership and
   tri-state evidence, fingerprints the stored float/chord/voice contract plus override/settings,
@@ -77,6 +83,7 @@
 
 ## Checks run
 
+- T4: ESLint and TypeScript passed; all five Vitest component tests passed.
 - T3: Ruff and formatting passed across the backend; strict mypy passed across 40 application
   sources; all 194 backend tests passed. The 43-test failure-path suite includes nine spelling
   rollback/interleaving tests, and 42 API tests cover the complete spelling contract and cascades.
@@ -95,8 +102,8 @@
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
 The key-detection and enharmonic-spelling plan is now reviewed and locked at
-`docs/KEY_SPELLING_PLAN.md`; T1-T3 are complete and the next step is T4 frontend integration,
-followed by T5-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
+`docs/KEY_SPELLING_PLAN.md`; T1-T4 are complete and the next step is T5 live browser verification,
+followed by the T6 consistency sweep. Cleaned MIDI, MusicXML, rendering, correction tools,
 broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks

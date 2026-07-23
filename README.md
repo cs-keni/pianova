@@ -2,7 +2,7 @@
 
 > Hear it. See it. Play it.
 
-Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, assigns independent hands and notation staves, separates staff-scoped notation voices, and exposes key detection plus contextual pitch spelling through the backend. The frontend spelling workflow and score generation remain unfinished.
+Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, assigns independent hands and notation staves, separates staff-scoped notation voices, and exposes key detection plus contextual pitch spelling through the backend and frontend. Score generation remains unfinished.
 
 ## What works now
 
@@ -17,11 +17,11 @@ Pianova is a local-first, AI-assisted piano transcription application. The curre
 - Bounded passage-level left/right hand and bass/treble staff assignment with independent confidence, explicit unknown states, typed ambiguity reasons, fingerprinted reuse, and concurrency-safe persistence.
 - Deterministic per-staff notation-voice separation with a hard overlap-forced second voice, typed successful unknowns, fingerprinted reuse, and concurrency-safe cascade invalidation.
 - Deterministic global-key detection and contextual enharmonic spelling with explicit unknowns, a standard-signature override, fingerprinted reuse, checked persistence, and concurrency-safe cascade invalidation.
-- A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, and bounded raw, symbolic-timing, interpretation, and notation-voice previews.
+- A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, key override, and bounded raw, symbolic-timing, interpretation, notation-voice, and written-pitch previews.
 - Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
 - Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
-Not implemented: the frontend pitch-spelling workflow, cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
+Not implemented: cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
 
 ## Screenshots
 
@@ -254,8 +254,8 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 ## Roadmap
 
 Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, readable
-global timing, independent hand/staff interpretation, notation-voice separation, and the backend
-key-aware spelling boundary are complete. Next: finish the spelling UI and live verification, then
+global timing, independent hand/staff interpretation, notation-voice separation, and the
+key-aware spelling backend/UI boundary are complete. Next: finish live spelling verification, then
 MusicXML, optional score rendering, correction tools, evaluation,
 and finally Synthesia analysis. See the
 [milestone roadmap](docs/roadmap.md).

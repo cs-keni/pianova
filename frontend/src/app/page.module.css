@@ -364,6 +364,80 @@
   margin-top: 0;
 }
 
+.spellingForm {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(260px, 1.25fr);
+  gap: 14px 20px;
+  align-items: end;
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #dedbd1;
+  border-radius: 14px;
+  background: #f8f6ef;
+}
+
+.spellingForm label {
+  display: block;
+  margin-bottom: 7px;
+  color: #334238;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.spellingForm select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #cbc9c0;
+  border-radius: 10px;
+  color: #1d2b22;
+  background: #fff;
+  font: inherit;
+}
+
+.spellingForm .help {
+  align-self: center;
+  margin: 0;
+}
+
+.spellingForm .primaryButton {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 2px;
+}
+
+.overrideNeeded {
+  border-color: #c48b69;
+  background: #fff6ef;
+  box-shadow: 0 0 0 3px rgb(196 139 105 / 12%);
+}
+
+.keyCard {
+  margin-top: 16px;
+  padding: 18px;
+  border: 1px solid #d9dfd8;
+  border-radius: 14px;
+  background: #f4f8f3;
+}
+
+.keyCard h4 {
+  margin-top: 5px;
+  color: #1d3928;
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.keyCard > p:last-child {
+  margin-top: 6px;
+  color: #627066;
+  font-size: 13px;
+}
+
+.keyUnknown {
+  border-color: #e0b9a5;
+  background: #fff5ef;
+}
+
 .timingDiagnostics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -619,6 +693,7 @@
   }
 
   .quantizationForm,
+  .spellingForm,
   .timingDiagnostics {
     grid-template-columns: 1fr;
   }

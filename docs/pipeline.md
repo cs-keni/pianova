@@ -138,6 +138,13 @@ through one shared helper and advance `spelling_revision` with a SQL-relative ex
 preserves spelling. Both commit orders against all three upstream stages are covered; the first
 valid commit wins and the stale request returns a retryable conflict without losing an increment.
 
+The frontend enables `Detect key & spell notes` only after voice separation and keeps the
+standard-signature selector available before and after a result. Blank means automatic detection;
+selecting a key resubmits as an explicit override, and clearing it returns to estimation. The key
+card distinguishes estimated, unknown, and user-chosen states; the note table keeps written pitch,
+decision score, and typed reason separate. Pending requests reject duplicate submission, errors
+remain retryable, and downstream copy explicitly defers cleaned MIDI, MusicXML, and rendering.
+
 ## Generated artifacts
 
 All artifact kinds are reserved in the schema: source, normalized audio, note-event JSON, raw MIDI, cleaned MIDI, MusicXML, and PDF. Source, normalized-audio, note-event JSON, and raw-MIDI artifacts are currently produced.
