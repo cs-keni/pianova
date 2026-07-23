@@ -1,6 +1,6 @@
 # Data Model Reference
 
-Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state; revision `20260716_0006` adds hand/staff state, confidence, ambiguity, ownership, and revision constraints; revision `20260718_0007` adds the checked notation-voice state and project ownership/revision fields. SQLAlchemy persistence models are separate from Pydantic API schemas.
+Alembic revision `20260714_0001` creates the initial tables; revision `20260714_0002` adds the per-project artifact-kind invariant; revision `20260716_0003` adds inspected project metadata and typed media streams; revision `20260716_0004` adds transcription evidence and ProcessingRun provenance; revision `20260716_0005` adds symbolic timing metadata, chord groups, invariants, and optimistic revision state; revision `20260716_0006` adds hand/staff state, confidence, ambiguity, ownership, and revision constraints; revision `20260718_0007` adds the checked notation-voice state and project ownership/revision fields; revision `20260719_0008` adds checked project key and per-note spelling state. SQLAlchemy persistence models are separate from Pydantic API schemas.
 
 ## Project
 
@@ -28,6 +28,12 @@ Alembic revision `20260714_0001` creates the initial tables; revision `20260714_
 | `interpretation_revision` | integer | Non-negative optimistic-concurrency and invalidation counter |
 | `current_voice_run_id` | integer, nullable | Successful ProcessingRun that owns current notation-voice state |
 | `voice_revision` | integer | Non-negative optimistic-concurrency and invalidation counter |
+| `key_tonic_step`, `key_tonic_alter`, `key_mode` | nullable key identity | Global standard-signature key; null when unprocessed or estimated unknown |
+| `key_confidence` | float, nullable | Uncalibrated estimated-key margin in `[0, 1]`; null for override |
+| `key_ambiguity_reason` | enum, nullable | `insufficient_notes` or `ambiguous_key` |
+| `key_source` | enum, nullable | `estimated` or `override` |
+| `current_spelling_run_id` | integer, nullable | Successful ProcessingRun that owns current key/spelling state |
+| `spelling_revision` | integer | Non-negative optimistic-concurrency and invalidation counter |
 | `created_at`, `updated_at` | timestamps | UTC lifecycle timestamps |
 
 ## Artifact
@@ -60,6 +66,10 @@ Note events preserve performed timing separately from later notation:
   probability.
 - `voice_ambiguity_reason`: nullable typed reason: `unresolved_staff`,
   `voice_capacity_exceeded`, `crossing`, or `close_alternative`.
+- `spelled_step`, `spelled_alter`, `spelled_octave`: nullable written pitch identity; spelling
+  never mutates MIDI `pitch`.
+- `spelling_confidence`: nullable uncalibrated decision score in `[0, 1]`.
+- `spelling_ambiguity_reason`: nullable `unknown_key` or `close_alternative`.
 - `source`: audio, video, audio-and-video, or manual.
 
 The three voice fields have exactly three valid database states:
@@ -70,11 +80,15 @@ The three voice fields have exactly three valid database states:
 
 All other combinations fail the named `ck_note_events_voice_state` constraint.
 
+The five spelling fields likewise permit exactly unprocessed, resolved, or typed-unknown states.
+The project key fields permit exactly unprocessed, estimated, estimated-unknown, or override
+states, and every processed key is coupled to `current_spelling_run_id`.
+
 This split lets Pianova simplify rubato into readable rhythm without destroying the model's original evidence.
 
 ## ProcessingRun
 
-Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, quantization, interpretation, and voice separation create running and terminal audit rows.
+Each row records a `stage`, status, optional error message, and nullable start/completion timestamps. Status values are pending, running, succeeded, and failed. Media preparation, transcription, quantization, interpretation, voice separation, and pitch spelling create running and terminal audit rows.
 
 Transcription runs additionally retain `model_name`, `model_version`, `model_runtime`, and `configuration_json`. This records the Basic Pitch/TensorFlow dependency versions and thresholds used to produce the raw evidence.
 
@@ -93,6 +107,11 @@ diagnostics. The project current-run pointer plus voice revision identify the ow
 voice state. Genuine upstream recomputation clears downstream pointers and fields atomically;
 SQL-relative revision increments preserve invalidation under concurrent stage commits.
 
+Pitch-spelling runs keep the ML columns empty. Their JSON records processor/runtime identity,
+current voice ownership, ordered-evidence fingerprint, effective settings, optional key override,
+key result, and diagnostics. The project pointer plus spelling revision own the current key and
+note spellings; genuine upstream recomputation clears both atomically.
+
 ## API schemas
 
 - `ProjectCreate`: `title`, 1-120 characters; whitespace-only titles are rejected by the service.
@@ -106,6 +125,8 @@ SQL-relative revision increments preserve invalidation under concurrent stage co
 - `QuantizationResponse`: updated project timing, bounded symbolic-note preview, typed fit diagnostics, processor provenance, and reuse state.
 - `InterpretationResponse`: updated ownership/revision, bounded assignment preview, resolved/unknown and work diagnostics, processor provenance, and reuse state.
 - `VoiceSeparationResponse`: updated ownership/revision, bounded voice preview, per-staff voice counts and structural diagnostics, processor provenance, and reuse state.
+- `SpellingResponse`: project key, ownership/revision, bounded spelling preview, typed ambiguity
+  counts, histogram/correlation diagnostics, processor provenance, and reuse state.
 
 API failures use `{ "error": { "code", "message", "details" } }`. Validation failures use the same envelope.
 

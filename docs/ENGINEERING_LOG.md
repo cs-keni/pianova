@@ -227,3 +227,19 @@
   both illegal pointer couplings, and all numeric bounds. A fresh database upgrades through the
   new revision and Alembic reports no model drift. Ruff, formatting, strict mypy across 38
   application sources, and all 175 backend tests pass.
+
+## 2026-07-23 — Key and spelling backend boundary
+
+- Added `SpellingService` and `POST /api/projects/{project_id}/spell` over the pure engine and
+  checked schema. The endpoint supports automatic detection, a standard-signature override,
+  typed successful ambiguity, bounded preview, diagnostics, provenance, ownership/revision, and
+  deterministic reuse.
+- Reuse validates the complete fingerprint/settings/version contract, owning successful voice and
+  spelling runs, project four-state key, note tri-state, written-pitch-to-MIDI round trips, and
+  diagnostic counts before trusting stored output.
+- A single shared spelling-clear helper is consumed by quantization, interpretation, voice, and
+  spelling services. Genuine upstream recomputation clears key/spelling state and advances the
+  revision with a SQL-relative expression; upstream reuse preserves the current result.
+- Nine failure/interleaving tests cover rollback, failed audit persistence, direct spelling
+  conflicts, and both commit orders against all three upstream stages. The complete backend gate
+  passes Ruff, formatting, strict mypy across 40 application sources, and 194 tests.

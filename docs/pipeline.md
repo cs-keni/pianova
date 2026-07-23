@@ -1,6 +1,6 @@
 # Processing Pipeline
 
-The current backend implements secure ingestion, typed media preparation, raw Basic Pitch transcription, conservative readable timing, independent hand/staff interpretation, and staff-scoped notation voices. Every later score stage remains a separate typed boundary and must fail explicitly until implemented.
+The current backend implements secure ingestion, typed media preparation, raw Basic Pitch transcription, conservative readable timing, independent hand/staff interpretation, staff-scoped notation voices, and key-aware pitch spelling. Every later score stage remains a separate typed boundary and must fail explicitly until implemented.
 
 | Stage | Input | Output/artifact | Main failure modes | Status |
 |---|---|---|---|---|
@@ -14,7 +14,7 @@ The current backend implements secure ingestion, typed media preparation, raw Ba
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
 | Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Implemented |
-| Key and pitch spelling | Voiced notes | Tonal context and spelled score events | Missing/stale voice state, ambiguous key or spelling, concurrent update | Pure engine only; persistence/API not implemented |
+| Key and pitch spelling | Voiced notes | Persisted tonal context and spelled note events | Missing/stale voice state, invalid override, concurrent update; ambiguity succeeds as typed evidence | Implemented backend |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
 | User correction | Note events and score state | Revised symbolic score and artifacts | Invalid edits or regeneration failure | Not implemented |
@@ -112,7 +112,7 @@ submissions while pending, and preserves recoverable errors for retry. Success s
 unknown totals, treble/bass voice 1/2 counts, and bounded hand/staff/voice evidence with the
 uncalibrated decision score and typed reason in separate columns.
 
-## Pure key/spelling contract (not yet API-visible)
+## Implemented key/spelling contract
 
 `app.symbolic.spelling.spell_notes` consumes immutable voiced notes with persisted float timing and
 positive `chord_group` evidence. It validates finite symbolic values, estimates one global major or
@@ -124,8 +124,19 @@ Resolved-key spelling uses line-of-fifths proximity, third-stacking within `chor
 chromatic-neighbor stream preference. Decision margins use a fixed 12-unit scale; singleton pitch
 classes score 1.0. Under an unknown key, a spelling resolves only when every plausible key has the
 same unique above-margin winner; otherwise it succeeds as `unknown_key`. The engine is deterministic,
-input-order invariant, O(24n), dependency-free, and covered by 32 focused tests. No project or note
-fields are written until T2 persistence and T3 service integration land.
+input-order invariant, O(24n), dependency-free, and covered by 32 focused tests.
+
+Revision `20260719_0008` persists exactly four project key states and three note spelling states.
+`POST /api/projects/{project_id}/spell` requires current complete voice evidence, accepts an
+optional standard-signature override, fingerprints the voice owner/revision plus ordered stored
+floats and settings, and validates persisted diagnostics and MIDI round trips before reuse.
+Success returns a bounded note preview, key result, resolved/unknown counts, diagnostics,
+provenance, ownership/revision, and reuse state.
+
+Genuine quantization, interpretation, and voice recomputation clear spelling and project key state
+through one shared helper and advance `spelling_revision` with a SQL-relative expression. Reuse
+preserves spelling. Both commit orders against all three upstream stages are covered; the first
+valid commit wins and the stale request returns a retryable conflict without losing an increment.
 
 ## Generated artifacts
 

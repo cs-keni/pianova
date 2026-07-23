@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     voice_high_separation_semitones: float = Field(default=7.0, gt=0, le=48)
     voice_preview_note_limit: int = Field(default=50, ge=1, le=500)
     voice_algorithm_version: str = "1.0.0"
+    spelling_key_minimum_notes: int = Field(default=8, ge=1, le=10_000)
+    spelling_key_minimum_distinct_pitch_classes: int = Field(default=3, ge=1, le=12)
+    spelling_key_ambiguity_margin: float = Field(default=0.05, ge=0, le=1)
+    spelling_close_margin: float = Field(default=0.10, ge=0, le=1)
+    spelling_preview_note_limit: int = Field(default=50, ge=1, le=500)
+    spelling_algorithm_version: str = "1.0.0"
 
     @field_validator("workspace_dir", mode="before")
     @classmethod

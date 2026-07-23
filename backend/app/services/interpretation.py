@@ -21,6 +21,10 @@ from app.models.entities import (
     Staff,
     utc_now,
 )
+from app.services.spelling_state import (
+    clear_spelling_note_state,
+    spelling_project_clear_values,
+)
 from app.services.stage_runner import StageRunner
 from app.symbolic.interpretation import (
     InterpretationDiagnostics,
@@ -99,6 +103,7 @@ class InterpretationService:
         expected_revision = project.interpretation_revision
         expected_quantization_run_id = project.current_quantization_run_id
         expected_voice_revision = project.voice_revision
+        expected_spelling_revision = project.spelling_revision
         run = self.stage_runner.precommit_run(
             project_id=project.id,
             configuration=configuration,
@@ -126,6 +131,7 @@ class InterpretationService:
                 note.voice = None
                 note.voice_confidence = None
                 note.voice_ambiguity_reason = None
+            clear_spelling_note_state(self.session, project.id)
             completed = {
                 **configuration,
                 "diagnostics": _diagnostics_dict(interpreted.diagnostics),
@@ -140,12 +146,14 @@ class InterpretationService:
                     Project.interpretation_revision == expected_revision,
                     Project.current_quantization_run_id == expected_quantization_run_id,
                     Project.voice_revision == expected_voice_revision,
+                    Project.spelling_revision == expected_spelling_revision,
                 )
                 .values(
                     current_interpretation_run_id=run.id,
                     interpretation_revision=expected_revision + 1,
                     current_voice_run_id=None,
                     voice_revision=Project.voice_revision + 1,
+                    **spelling_project_clear_values(),
                     updated_at=utc_now(),
                 ),
                 conflict_error=PianovaError(

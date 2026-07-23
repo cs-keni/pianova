@@ -2,7 +2,7 @@
 
 > Hear it. See it. Play it.
 
-Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, assigns independent hands and notation staves, and separates staff-scoped notation voices with explicit uncertainty. Pitch spelling and score generation remain unfinished.
+Pianova is a local-first, AI-assisted piano transcription application. The current working slice securely stores a source, inspects and normalizes it, runs a real Basic Pitch piano transcription, preserves raw note events plus MIDI, converts those events into a readable global tempo and straight-note beat grid, assigns independent hands and notation staves, separates staff-scoped notation voices, and exposes key detection plus contextual pitch spelling through the backend. The frontend spelling workflow and score generation remain unfinished.
 
 ## What works now
 
@@ -16,11 +16,12 @@ Pianova is a local-first, AI-assisted piano transcription application. The curre
 - Deterministic note-onset tempo estimation, simple `2/4`, `3/4`, or `4/4` meter, explicit BPM/origin overrides, exact internal fractions, chord grouping, and readable straight-note quantization without changing raw timing.
 - Bounded passage-level left/right hand and bass/treble staff assignment with independent confidence, explicit unknown states, typed ambiguity reasons, fingerprinted reuse, and concurrency-safe persistence.
 - Deterministic per-staff notation-voice separation with a hard overlap-forced second voice, typed successful unknowns, fingerprinted reuse, and concurrency-safe cascade invalidation.
+- Deterministic global-key detection and contextual enharmonic spelling with explicit unknowns, a standard-signature override, fingerprinted reuse, checked persistence, and concurrency-safe cascade invalidation.
 - A responsive Next.js interface for project creation, media preparation, explicit transcription, ambiguity recovery, fit diagnostics, and bounded raw, symbolic-timing, interpretation, and notation-voice previews.
 - Structured API errors and truthful `available`, `unavailable`, and `not_implemented` capability states.
 - Ruff, strict mypy, pytest, ESLint, TypeScript, Vitest, production-build, and Playwright checks.
 
-Not implemented: key-aware pitch spelling, cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
+Not implemented: the frontend pitch-spelling workflow, cleaned MIDI, MusicXML, PDF rendering, note editing, project resume/listing, or Synthesia analysis. The interface never presents these stages as working.
 
 ## Screenshots
 
@@ -37,6 +38,7 @@ Browser (Next.js)
   |  POST /api/projects/{id}/quantize
   |  POST /api/projects/{id}/interpret
   |  POST /api/projects/{id}/separate-voices
+  |  POST /api/projects/{id}/spell
   v
 FastAPI
   +-- typed settings, errors, capabilities, dependency probes
@@ -218,7 +220,7 @@ MP3, WAV, M4A, MP4, and MOV are accepted. Pianova does not trust the extension a
 - Audio shorter than 0.05 seconds is rejected before Basic Pitch because the model cannot form a usable analysis frame.
 - Automatic tempo is intentionally conservative: sparse, weakly aligned, or half/double-tempo evidence returns `tempo_ambiguous` until the user supplies BPM.
 - Quantization currently assumes one global quarter-note BPM and straight sixteenth-note resolution; variable tempo, compound meter, tuplets, swing, downbeat inference, and partial quantization are deferred.
-- Hand/staff interpretation and notation-voice separation are deterministic baselines. Ambiguous notes remain `unknown`; neither stage infers key-aware spelling.
+- Hand/staff interpretation, notation-voice separation, and key-aware spelling are deterministic baselines. Ambiguous evidence remains explicitly `unknown`; modulation is not inferred.
 - MuseScore absence never blocks project creation or future MusicXML export.
 - Projects cannot yet be listed, renamed, deleted, or reprocessed through the UI.
 - Upload progress is represented as a pending state, not a byte-level progress bar.
@@ -252,8 +254,9 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 ## Roadmap
 
 Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, readable
-global timing, independent hand/staff interpretation, and notation-voice separation are complete.
-Next: key-aware spelling, then MusicXML, optional score rendering, correction tools, evaluation,
+global timing, independent hand/staff interpretation, notation-voice separation, and the backend
+key-aware spelling boundary are complete. Next: finish the spelling UI and live verification, then
+MusicXML, optional score rendering, correction tools, evaluation,
 and finally Synthesia analysis. See the
 [milestone roadmap](docs/roadmap.md).
 

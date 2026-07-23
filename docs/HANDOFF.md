@@ -2,6 +2,14 @@
 
 ## What changed
 
+- 2026-07-23 (T3): added the `pitch_spelling` service/API boundary, typed request/response
+  schemas, settings, and available capability. The service validates current voice ownership and
+  tri-state evidence, fingerprints the stored float/chord/voice contract plus override/settings,
+  persists through `StageRunner`, and distrusts malformed key, note, diagnostic, or MIDI
+  round-trip state before reuse. One shared helper clears spelling and key state from genuine
+  quantization, interpretation, and voice recomputation; reuse preserves it. Both commit orders
+  against all three upstream stages are covered, along with rollback, failed-audit, invalid
+  override, override-to-auto transitions, unknown-key success, and resolved automatic-key tests.
 - 2026-07-23 (T2): added Alembic revision `20260719_0008` and matching ORM state for one
   project-level key, spelling run ownership/revision, and per-note written spelling. Named
   database checks enumerate exactly four project key states and three note spelling states,
@@ -69,13 +77,16 @@
 
 ## Checks run
 
+- T3: Ruff and formatting passed across the backend; strict mypy passed across 40 application
+  sources; all 194 backend tests passed. The 43-test failure-path suite includes nine spelling
+  rollback/interleaving tests, and 42 API tests cover the complete spelling contract and cascades.
 - T2: Ruff and formatting passed across the backend; strict mypy passed across 38 application
   sources; all 175 tests passed, including 27 focused persistence tests; a fresh SQLite database
   upgraded through `20260719_0008`; `alembic check` found no model drift.
 - Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 38 source files;
-  pytest passed 175 tests. The focused spelling engine suite passed all 32 tests with 100% module
+  pytest passed 194 tests. The focused spelling engine suite passed all 32 tests with 100% module
   coverage, and all 27 spelling persistence tests passed.
-- Database: Alembic upgraded through `20260718_0007`; `alembic check` found no drift.
+- Database: Alembic upgraded through `20260719_0008`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
 - Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, hand/staff interpretation, and notation-voice separation.
 - Repository: `git diff --check` passed before delivery review.
@@ -84,8 +95,8 @@
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
 The key-detection and enharmonic-spelling plan is now reviewed and locked at
-`docs/KEY_SPELLING_PLAN.md`; T1-T2 are complete and the next step is T3 backend integration,
-followed by T4-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
+`docs/KEY_SPELLING_PLAN.md`; T1-T3 are complete and the next step is T4 frontend integration,
+followed by T5-T6 in order. Cleaned MIDI, MusicXML, rendering, correction tools,
 broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks

@@ -64,6 +64,12 @@ def build_capabilities(
             reason="Staff-scoped forced notation voices with explicit uncertainty are ready.",
         ),
         Capability(
+            key="pitch_spelling",
+            label="Key detection and pitch spelling",
+            state=CapabilityState.AVAILABLE,
+            reason="Global key detection and contextual enharmonic spelling are ready.",
+        ),
+        Capability(
             key="musicxml",
             label="MusicXML generation",
             state=CapabilityState.NOT_IMPLEMENTED,

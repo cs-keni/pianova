@@ -139,8 +139,8 @@ preview, per-staff voice counts, structural diagnostics, provenance, and reuse s
 exposes the stage as an explicit post-interpretation action with pending/error recovery and typed
 unknown evidence.
 
-The pure tonal engine now exists as `app.symbolic.spelling`, but it is not yet a persisted or
-API-visible stage:
+The tonal boundary is implemented as the pure `app.symbolic.spelling` engine plus the
+`SpellingService` persistence/API shell:
 
 ```text
 voiced notes with stored float timing + positive chord_group
@@ -155,14 +155,18 @@ voiced notes with stored float timing + positive chord_group
 The engine never reconstructs fractions or uses float-onset equality; `chord_group` remains the
 persisted same-onset fact. Unknown-key D4 resolution is context-free and conservative: every
 plausible key must produce the same unique above-margin spelling, and the resolved score is the
-worst per-key margin. T2 and T3 still need checked persistence, ownership, invalidation, service,
-and API integration before pitch spelling becomes an available product capability.
+worst per-key margin. Revision `20260719_0008` provides pointer-coupled four-state project key
+storage and exact tri-state note spelling. `SpellingService` validates current voice ownership,
+fingerprints stored float evidence plus settings and override, distrusts malformed reuse state,
+and commits through `StageRunner`. `POST /api/projects/{project_id}/spell` returns the key,
+bounded spellings, diagnostics, provenance, ownership/revision, and reuse state.
 
-Genuine re-quantization invalidates both interpretation and voice state, while genuine
-re-interpretation invalidates voice state. These cascade transactions clear downstream fields and
-run pointers and increment downstream revisions with SQL-relative expressions. Combined with each
-stage's compare-and-swap predicates, this prevents concurrent upstream and voice commits from
-losing an invalidation increment; the stale transaction fails with a retryable conflict.
+Genuine re-quantization invalidates interpretation, voice, and spelling; genuine
+re-interpretation invalidates voice and spelling; genuine re-voice-separation invalidates
+spelling. These cascade transactions clear downstream fields and run pointers and increment
+downstream revisions with SQL-relative expressions. Combined with each stage's compare-and-swap
+predicates, this prevents concurrent stage commits from losing an invalidation increment; the
+stale transaction fails with a retryable conflict.
 
 ## External executables
 

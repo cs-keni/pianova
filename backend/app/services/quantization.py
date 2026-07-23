@@ -23,6 +23,10 @@ from app.models.entities import (
     utc_now,
 )
 from app.schemas.api import QuantizationRequest
+from app.services.spelling_state import (
+    clear_spelling_note_state,
+    spelling_project_clear_values,
+)
 from app.services.stage_runner import StageRunner
 from app.symbolic.timing import (
     QuantizedTimingNote,
@@ -113,6 +117,7 @@ class QuantizationService:
         expected_revision = project.quantization_revision
         expected_interpretation_revision = project.interpretation_revision
         expected_voice_revision = project.voice_revision
+        expected_spelling_revision = project.spelling_revision
         run = self.stage_runner.precommit_run(
             project_id=project.id,
             configuration=request_configuration,
@@ -142,6 +147,7 @@ class QuantizationService:
                 note.voice = None
                 note.voice_confidence = None
                 note.voice_ambiguity_reason = None
+            clear_spelling_note_state(self.session, project.id)
 
             completed_configuration = {
                 **request_configuration,
@@ -163,6 +169,7 @@ class QuantizationService:
                     Project.quantization_revision == expected_revision,
                     Project.interpretation_revision == expected_interpretation_revision,
                     Project.voice_revision == expected_voice_revision,
+                    Project.spelling_revision == expected_spelling_revision,
                 )
                 .values(
                     estimated_tempo_bpm=timing.estimated_tempo_bpm,
@@ -179,6 +186,7 @@ class QuantizationService:
                     interpretation_revision=Project.interpretation_revision + 1,
                     current_voice_run_id=None,
                     voice_revision=Project.voice_revision + 1,
+                    **spelling_project_clear_values(),
                     updated_at=utc_now(),
                 ),
                 conflict_error=PianovaError(

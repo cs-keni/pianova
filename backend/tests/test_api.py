@@ -11,10 +11,13 @@ from app.models.entities import (
     ArtifactKind,
     AssignmentAmbiguityReason,
     Hand,
+    KeyAmbiguityReason,
+    KeySource,
     NoteEvent,
     ProcessingRun,
     ProcessingStatus,
     Project,
+    SpellingAmbiguityReason,
     Staff,
     VoiceAmbiguityReason,
     utc_now,
@@ -81,6 +84,85 @@ def create_voice_ready_project(client: TestClient) -> dict[str, object]:
     return project
 
 
+def create_spelling_ready_project(
+    client: TestClient,
+    notes: list[tuple[int, float]],
+    *,
+    title: str = "Spelling ready",
+) -> dict[str, object]:
+    project = client.post("/api/projects", json={"title": title}).json()
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        run = ProcessingRun(
+            project_id=stored.id,
+            stage="voice_separation",
+            status=ProcessingStatus.SUCCEEDED,
+            configuration_json="{}",
+            started_at=utc_now(),
+            completed_at=utc_now(),
+        )
+        session.add(run)
+        session.flush()
+        stored.current_voice_run_id = run.id
+        stored.voice_revision = 1
+        session.add_all(
+            NoteEvent(
+                project_id=stored.id,
+                pitch=pitch,
+                velocity=90,
+                raw_start_seconds=index / 2,
+                raw_end_seconds=(index + duration) / 2,
+                confidence=0.9,
+                symbolic_start_beats=float(index),
+                symbolic_duration_beats=duration,
+                chord_group=index + 1,
+                hand=Hand.RIGHT,
+                staff=Staff.TREBLE,
+                hand_confidence=1,
+                staff_confidence=1,
+                voice=1,
+                voice_confidence=1,
+            )
+            for index, (pitch, duration) in enumerate(notes)
+        )
+        session.commit()
+    return project
+
+
+def create_pipeline_spelled_project(
+    client: TestClient,
+    *,
+    title: str,
+) -> tuple[dict[str, object], dict[str, object]]:
+    project = create_note_project(
+        client,
+        [(48, 0.0, 0.4), (72, 0.0, 0.4), (50, 0.5, 0.9), (74, 0.5, 0.9)],
+        title=title,
+    )
+    assert (
+        client.post(
+            f"/api/projects/{project['id']}/quantize",
+            json={"tempo_bpm": 120},
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/projects/{project['id']}/interpret").status_code == 200
+    assert client.post(f"/api/projects/{project['id']}/separate-voices").status_code == 200
+    spelled = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "C",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+    assert spelled.status_code == 200
+    return project, spelled.json()
+
+
 def _interpreted_note(
     project_id: str,
     pitch: int,
@@ -126,6 +208,7 @@ def test_health_reports_media_capability_and_unfinished_stages(client: TestClien
     assert capabilities["transcription"] == "available"
     assert capabilities["interpretation"] == "available"
     assert capabilities["voice_separation"] == "available"
+    assert capabilities["pitch_spelling"] == "available"
     assert capabilities["musicxml"] == "not_implemented"
     assert capabilities["score_rendering"] == "not_implemented"
 
@@ -1011,3 +1094,326 @@ def test_reinterpretation_invalidates_current_voices(client: TestClient) -> None
         assert all(note.voice is None for note in notes)
         assert all(note.voice_confidence is None for note in notes)
         assert all(note.voice_ambiguity_reason is None for note in notes)
+
+
+def test_spelling_requires_current_complete_voice_state(client: TestClient) -> None:
+    project = client.post("/api/projects", json={"title": "No voices"}).json()
+
+    missing = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert missing.status_code == 409
+    assert missing.json()["error"]["code"] == "voice_separation_required"
+
+    invalid_owner = create_spelling_ready_project(client, [(60, 1.0)])
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, invalid_owner["id"])
+        assert stored is not None
+        stored.current_voice_run_id = 999_999
+        session.commit()
+
+    invalid = client.post(f"/api/projects/{invalid_owner['id']}/spell", json={})
+
+    assert invalid.status_code == 409
+    assert invalid.json()["error"]["code"] == "voice_separation_required"
+
+    incomplete = create_spelling_ready_project(client, [(60, 1.0)])
+    with client.app.state.session_factory() as session:
+        note = session.scalar(select(NoteEvent).where(NoteEvent.project_id == incomplete["id"]))
+        assert note is not None
+        note.chord_group = None
+        session.commit()
+
+    invalid_note = client.post(f"/api/projects/{incomplete['id']}/spell", json={})
+
+    assert invalid_note.status_code == 409
+    assert invalid_note.json()["error"]["code"] == "incomplete_voice_state"
+
+
+def test_spelling_persists_unknown_key_counts_provenance_and_reuses(
+    client: TestClient,
+) -> None:
+    project = create_spelling_ready_project(
+        client,
+        [(60, 1.0), (64, 1.0), (67, 1.0), (62, 1.0)],
+    )
+
+    first = client.post(f"/api/projects/{project['id']}/spell", json={})
+    second = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["reused"] is False
+    assert body["note_count"] == 4
+    assert body["key"] == {
+        "source": "estimated",
+        "tonic_step": None,
+        "tonic_alter": None,
+        "mode": None,
+        "confidence": 0.0,
+        "ambiguity_reason": "insufficient_notes",
+        "key_signature_fifths": None,
+    }
+    assert body["project"]["current_spelling_run_id"] == body["provenance"]["run_id"]
+    assert body["project"]["spelling_revision"] == 1
+    assert body["provenance"]["processor_name"] == "pianova_key_pitch_spelling"
+    assert body["diagnostics"]["resolved_count"] + body["diagnostics"]["unknown_count"] == 4
+    assert body["diagnostics"]["unknown_key_count"] == body["diagnostics"]["unknown_count"]
+    assert second.status_code == 200
+    assert second.json()["reused"] is True
+    assert second.json()["provenance"]["run_id"] == body["provenance"]["run_id"]
+
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.key_source is KeySource.ESTIMATED
+        assert stored.key_ambiguity_reason is KeyAmbiguityReason.INSUFFICIENT_NOTES
+        assert stored.key_confidence == 0
+        notes = tuple(
+            session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        )
+        assert all(note.spelling_confidence is not None for note in notes)
+        assert (
+            sum(
+                note.spelling_ambiguity_reason is SpellingAmbiguityReason.UNKNOWN_KEY
+                for note in notes
+            )
+            == body["diagnostics"]["unknown_count"]
+        )
+
+
+def test_spelling_override_reuse_and_blank_request_reestimates(client: TestClient) -> None:
+    project = create_spelling_ready_project(
+        client,
+        [(60, 1.0), (64, 1.0), (67, 1.0), (62, 1.0)],
+    )
+    client.post(f"/api/projects/{project['id']}/spell", json={})
+    override = {
+        "key_override": {
+            "tonic_step": "C",
+            "tonic_alter": 0,
+            "mode": "major",
+        }
+    }
+
+    overridden = client.post(f"/api/projects/{project['id']}/spell", json=override)
+    reused = client.post(f"/api/projects/{project['id']}/spell", json=override)
+    estimated = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert overridden.status_code == 200
+    assert overridden.json()["key"]["source"] == "override"
+    assert overridden.json()["key"]["confidence"] is None
+    assert overridden.json()["key"]["key_signature_fifths"] == 0
+    assert overridden.json()["diagnostics"]["resolved_count"] == 4
+    assert all(note["spelled_step"] is not None for note in overridden.json()["preview_notes"])
+    assert reused.status_code == 200
+    assert reused.json()["reused"] is True
+    assert estimated.status_code == 200
+    assert estimated.json()["reused"] is False
+    assert estimated.json()["key"]["source"] == "estimated"
+    assert estimated.json()["key"]["ambiguity_reason"] == "insufficient_notes"
+    assert estimated.json()["project"]["spelling_revision"] == 3
+
+
+def test_spelling_rejects_nonstandard_key_override(client: TestClient) -> None:
+    project = create_spelling_ready_project(client, [(60, 1.0)])
+
+    response = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "F",
+                "tonic_alter": -1,
+                "mode": "major",
+            }
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_key_override"
+
+
+def test_spelling_estimates_clear_major_key(client: TestClient) -> None:
+    major_profile = (
+        6.35,
+        2.23,
+        3.48,
+        2.33,
+        4.38,
+        4.09,
+        2.52,
+        5.19,
+        2.39,
+        3.66,
+        2.29,
+        2.88,
+    )
+    project = create_spelling_ready_project(
+        client,
+        [(60 + pitch_class, duration) for pitch_class, duration in enumerate(major_profile)],
+        title="Clear C major",
+    )
+
+    response = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["key"]["source"] == "estimated"
+    assert body["key"]["tonic_step"] == "C"
+    assert body["key"]["tonic_alter"] == 0
+    assert body["key"]["mode"] == "major"
+    assert body["key"]["key_signature_fifths"] == 0
+    assert body["key"]["confidence"] > 0
+
+
+def test_spelling_declines_malformed_reuse_and_recomputes(client: TestClient) -> None:
+    project = create_spelling_ready_project(
+        client,
+        [(60, 1.0), (64, 1.0), (67, 1.0), (62, 1.0)],
+    )
+    first = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "C",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+    assert first.status_code == 200
+
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        run = session.get(ProcessingRun, stored.current_spelling_run_id)
+        assert run is not None
+        run.configuration_json = "not-json"
+        session.commit()
+
+    repaired = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "C",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+
+    assert repaired.status_code == 200
+    assert repaired.json()["reused"] is False
+    assert repaired.json()["project"]["spelling_revision"] == 2
+
+    with client.app.state.session_factory() as session:
+        note = session.scalar(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        assert note is not None
+        note.spelled_step = None
+        note.spelled_alter = None
+        note.spelled_octave = None
+        note.spelling_ambiguity_reason = SpellingAmbiguityReason.UNKNOWN_KEY
+        session.commit()
+
+    repaired_state = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "C",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+    assert repaired_state.status_code == 200
+    assert repaired_state.json()["reused"] is False
+    assert repaired_state.json()["project"]["spelling_revision"] == 3
+
+
+def test_upstream_reuse_preserves_current_spelling(client: TestClient) -> None:
+    project, spelled = create_pipeline_spelled_project(client, title="Preserve spelling")
+    run_id = spelled["provenance"]["run_id"]
+
+    reused_voice = client.post(f"/api/projects/{project['id']}/separate-voices")
+    reused_interpretation = client.post(f"/api/projects/{project['id']}/interpret")
+    reused_quantization = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 120},
+    )
+
+    assert reused_voice.status_code == 200
+    assert reused_voice.json()["reused"] is True
+    assert reused_voice.json()["project"]["current_spelling_run_id"] == run_id
+    assert reused_interpretation.status_code == 200
+    assert reused_interpretation.json()["reused"] is True
+    assert reused_interpretation.json()["project"]["current_spelling_run_id"] == run_id
+    assert reused_quantization.status_code == 200
+    assert reused_quantization.json()["reused"] is True
+    assert reused_quantization.json()["project"]["current_spelling_run_id"] == run_id
+
+
+def test_revoice_clears_current_spelling(client: TestClient) -> None:
+    project, spelled = create_pipeline_spelled_project(client, title="Revoice spelling")
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert response.status_code == 200
+    assert response.json()["reused"] is False
+    assert response.json()["project"]["current_spelling_run_id"] is None
+    assert (
+        response.json()["project"]["spelling_revision"]
+        == spelled["project"]["spelling_revision"] + 1
+    )
+    _assert_spelling_cleared(client, str(project["id"]))
+
+
+def test_reinterpretation_clears_current_spelling(client: TestClient) -> None:
+    project, spelled = create_pipeline_spelled_project(client, title="Reinterpret spelling")
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert response.status_code == 200
+    assert response.json()["reused"] is False
+    assert response.json()["project"]["current_spelling_run_id"] is None
+    assert (
+        response.json()["project"]["spelling_revision"]
+        == spelled["project"]["spelling_revision"] + 1
+    )
+    _assert_spelling_cleared(client, str(project["id"]))
+
+
+def test_requantization_clears_current_spelling(client: TestClient) -> None:
+    project, spelled = create_pipeline_spelled_project(client, title="Requantize spelling")
+
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 90},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reused"] is False
+    assert response.json()["project"]["current_spelling_run_id"] is None
+    assert (
+        response.json()["project"]["spelling_revision"]
+        == spelled["project"]["spelling_revision"] + 1
+    )
+    _assert_spelling_cleared(client, str(project["id"]))
+
+
+def _assert_spelling_cleared(client: TestClient, project_id: str) -> None:
+    with client.app.state.session_factory() as session:
+        project = session.get(Project, project_id)
+        assert project is not None
+        assert project.key_tonic_step is None
+        assert project.key_tonic_alter is None
+        assert project.key_mode is None
+        assert project.key_confidence is None
+        assert project.key_ambiguity_reason is None
+        assert project.key_source is None
+        notes = tuple(session.scalars(select(NoteEvent).where(NoteEvent.project_id == project_id)))
+        assert all(note.spelled_step is None for note in notes)
+        assert all(note.spelled_alter is None for note in notes)
+        assert all(note.spelled_octave is None for note in notes)
+        assert all(note.spelling_confidence is None for note in notes)
+        assert all(note.spelling_ambiguity_reason is None for note in notes)

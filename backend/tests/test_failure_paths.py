@@ -75,6 +75,26 @@ def create_voiced_project(
     return project, voiced.json()
 
 
+def create_spelled_project(
+    client: TestClient,
+    *,
+    title: str,
+) -> tuple[dict[str, object], dict[str, object]]:
+    project, _voiced = create_voiced_project(client, title=title)
+    spelled = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "C",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+    assert spelled.status_code == 200
+    return project, spelled.json()
+
+
 def create_normalized_project(
     client: TestClient,
     wav_bytes: bytes,
@@ -1302,3 +1322,371 @@ def test_voice_commit_first_makes_requantization_commit_lose(
         assert stored.interpretation_revision == first_body["project"]["interpretation_revision"]
         assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
         assert stored.current_voice_run_id != first_body["provenance"]["run_id"]
+
+
+def test_spelling_commit_failure_preserves_previous_result(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Spelling rollback")
+    original_commit = Session.commit
+    commit_count = 0
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+
+    def fail_success_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated spelling commit failure")
+        original_commit(session)
+
+    monkeypatch.setattr(Session, "commit", fail_success_commit)
+    response = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "C",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "spelling_failed"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_spelling_run_id == first_body["provenance"]["run_id"]
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"]
+        assert stored.key_source is not None
+        notes = tuple(
+            session.scalars(select(NoteEvent).where(NoteEvent.project_id == project["id"]))
+        )
+        assert all(note.spelled_step is not None for note in notes)
+        assert all(note.spelling_confidence is not None for note in notes)
+        latest = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "pitch_spelling",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest is not None
+        assert latest.status is ProcessingStatus.FAILED
+
+
+def test_spelling_conflict_rolls_back_new_result(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Spelling conflict")
+    from app.services import spelling as spelling_module
+
+    original_spell = spelling_module.spell_notes
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+
+    def concurrent_spelling(*args: object, **kwargs: object) -> object:
+        result = original_spell(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            stored.spelling_revision += 1
+            other_session.commit()
+        return result
+
+    monkeypatch.setattr(spelling_module, "spell_notes", concurrent_spelling)
+    response = client.post(
+        f"/api/projects/{project['id']}/spell",
+        json={
+            "key_override": {
+                "tonic_step": "G",
+                "tonic_alter": 0,
+                "mode": "major",
+            }
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "spelling_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.current_spelling_run_id == first_body["provenance"]["run_id"]
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        latest = session.scalar(
+            select(ProcessingRun)
+            .where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "pitch_spelling",
+            )
+            .order_by(ProcessingRun.id.desc())
+        )
+        assert latest is not None
+        assert latest.status is ProcessingStatus.FAILED
+
+
+def test_spelling_failure_audit_commit_failure_is_logged(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, _voiced = create_voiced_project(client, title="Spelling audit failure")
+    from app.services import spelling as spelling_module
+
+    original_commit = Session.commit
+    commit_count = 0
+    logged: list[str] = []
+
+    def fail_engine(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("simulated spelling engine failure")
+
+    def fail_audit_commit(session: Session) -> None:
+        nonlocal commit_count
+        commit_count += 1
+        if commit_count == 2:
+            raise RuntimeError("simulated audit commit failure")
+        original_commit(session)
+
+    def capture_exception(message: str, *args: object, **_kwargs: object) -> None:
+        logged.append(message % args)
+
+    monkeypatch.setattr(spelling_module, "spell_notes", fail_engine)
+    monkeypatch.setattr(spelling_module.logger, "exception", capture_exception)
+    monkeypatch.setattr(Session, "commit", fail_audit_commit)
+    response = client.post(f"/api/projects/{project['id']}/spell", json={})
+    monkeypatch.setattr(Session, "commit", original_commit)
+
+    assert response.status_code == 500
+    assert response.json()["error"]["code"] == "spelling_failed"
+    assert any("Could not persist failed pitch_spelling run" in item for item in logged)
+    with client.app.state.session_factory() as session:
+        run = session.scalar(
+            select(ProcessingRun).where(
+                ProcessingRun.project_id == project["id"],
+                ProcessingRun.stage == "pitch_spelling",
+            )
+        )
+        assert run is not None
+        assert run.status is ProcessingStatus.RUNNING
+
+
+def test_revoice_commit_first_makes_spelling_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Voice wins over spelling")
+    from app.services import spelling as spelling_module
+    from app.services.voices import VoiceService
+
+    original_spell = spelling_module.spell_notes
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+
+    def voice_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_spell(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            VoiceService(other_session, client.app.state.settings).separate(stored)
+        return result
+
+    monkeypatch.setattr(spelling_module, "spell_notes", voice_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "spelling_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.voice_revision == first_body["project"]["voice_revision"] + 1
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        assert stored.current_spelling_run_id is None
+
+
+def test_spelling_commit_first_makes_revoice_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Spelling wins over voice")
+    from app.schemas.api import SpellingRequest
+    from app.services import voices as voices_module
+    from app.services.spelling import SpellingService
+
+    original_separate = voices_module.separate_voices
+    client.app.state.settings.voice_algorithm_version = "2.0.0"
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+
+    def spelling_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_separate(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            SpellingService(other_session, client.app.state.settings).spell(
+                stored,
+                SpellingRequest(),
+            )
+        return result
+
+    monkeypatch.setattr(voices_module, "separate_voices", spelling_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/separate-voices")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "voice_separation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.voice_revision == first_body["project"]["voice_revision"]
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        assert stored.current_spelling_run_id != first_body["provenance"]["run_id"]
+
+
+def test_reinterpretation_commit_first_makes_spelling_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Interpretation beats spelling")
+    from app.services import spelling as spelling_module
+    from app.services.interpretation import InterpretationService
+
+    original_spell = spelling_module.spell_notes
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+
+    def interpretation_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_spell(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            InterpretationService(other_session, client.app.state.settings).interpret(stored)
+        return result
+
+    monkeypatch.setattr(spelling_module, "spell_notes", interpretation_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "spelling_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.interpretation_revision == (
+            first_body["project"]["interpretation_revision"] + 1
+        )
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        assert stored.current_voice_run_id is None
+        assert stored.current_spelling_run_id is None
+
+
+def test_spelling_commit_first_makes_reinterpretation_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Spelling beats interpretation")
+    from app.schemas.api import SpellingRequest
+    from app.services import interpretation as interpretation_module
+    from app.services.spelling import SpellingService
+
+    original_interpret = interpretation_module.interpret_notes
+    client.app.state.settings.interpretation_algorithm_version = "2.0.0"
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+
+    def spelling_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_interpret(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            SpellingService(other_session, client.app.state.settings).spell(
+                stored,
+                SpellingRequest(),
+            )
+        return result
+
+    monkeypatch.setattr(interpretation_module, "interpret_notes", spelling_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/interpret")
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "interpretation_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.interpretation_revision == first_body["project"]["interpretation_revision"]
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        assert stored.current_spelling_run_id != first_body["provenance"]["run_id"]
+
+
+def test_requantization_commit_first_makes_spelling_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Quantization beats spelling")
+    from app.schemas.api import QuantizationRequest
+    from app.services import spelling as spelling_module
+    from app.services.quantization import QuantizationService
+
+    original_spell = spelling_module.spell_notes
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+
+    def quantization_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_spell(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            QuantizationService(other_session, client.app.state.settings).quantize(
+                stored,
+                QuantizationRequest(tempo_bpm=90),
+            )
+        return result
+
+    monkeypatch.setattr(spelling_module, "spell_notes", quantization_commits_first)
+    response = client.post(f"/api/projects/{project['id']}/spell", json={})
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "spelling_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.quantization_revision == first_body["project"]["quantization_revision"] + 1
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        assert stored.current_interpretation_run_id is None
+        assert stored.current_voice_run_id is None
+        assert stored.current_spelling_run_id is None
+
+
+def test_spelling_commit_first_makes_requantization_commit_lose(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project, first_body = create_spelled_project(client, title="Spelling beats quantization")
+    from app.schemas.api import SpellingRequest
+    from app.services import quantization as quantization_module
+    from app.services.spelling import SpellingService
+
+    original_quantize = quantization_module.quantize_timing
+    client.app.state.settings.spelling_algorithm_version = "2.0.0"
+
+    def spelling_commits_first(*args: object, **kwargs: object) -> object:
+        result = original_quantize(*args, **kwargs)
+        with client.app.state.session_factory() as other_session:
+            stored = other_session.get(Project, project["id"])
+            assert stored is not None
+            SpellingService(other_session, client.app.state.settings).spell(
+                stored,
+                SpellingRequest(),
+            )
+        return result
+
+    monkeypatch.setattr(quantization_module, "quantize_timing", spelling_commits_first)
+    response = client.post(
+        f"/api/projects/{project['id']}/quantize",
+        json={"tempo_bpm": 90},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "quantization_conflict"
+    with client.app.state.session_factory() as session:
+        stored = session.get(Project, project["id"])
+        assert stored is not None
+        assert stored.quantization_revision == first_body["project"]["quantization_revision"]
+        assert stored.spelling_revision == first_body["project"]["spelling_revision"] + 1
+        assert stored.current_spelling_run_id != first_body["provenance"]["run_id"]

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -8,9 +9,13 @@ from app.models.entities import (
     AssignmentAmbiguityReason,
     DetectionSource,
     Hand,
+    KeyAmbiguityReason,
+    KeyMode,
+    KeySource,
     MediaStreamType,
     ProjectStatus,
     SettingSource,
+    SpellingAmbiguityReason,
     Staff,
     TempoSource,
     VoiceAmbiguityReason,
@@ -86,6 +91,14 @@ class ProjectResponse(BaseModel):
     interpretation_revision: int
     current_voice_run_id: int | None
     voice_revision: int
+    key_tonic_step: str | None
+    key_tonic_alter: int | None
+    key_mode: KeyMode | None
+    key_confidence: float | None
+    key_ambiguity_reason: KeyAmbiguityReason | None
+    key_source: KeySource | None
+    current_spelling_run_id: int | None
+    spelling_revision: int
     media_streams: list[MediaStreamResponse]
     created_at: datetime
     updated_at: datetime
@@ -297,4 +310,77 @@ class VoiceSeparationResponse(BaseModel):
     preview_notes: list[VoicedNoteResponse]
     diagnostics: VoiceDiagnosticsResponse
     provenance: VoiceProvenanceResponse
+    reused: bool
+
+
+class KeyOverrideRequest(BaseModel):
+    tonic_step: Literal["A", "B", "C", "D", "E", "F", "G"]
+    tonic_alter: int = Field(ge=-1, le=1)
+    mode: KeyMode
+
+
+class SpellingRequest(BaseModel):
+    key_override: KeyOverrideRequest | None = None
+
+
+class KeyResultResponse(BaseModel):
+    source: KeySource
+    tonic_step: str | None
+    tonic_alter: int | None
+    mode: KeyMode | None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    ambiguity_reason: KeyAmbiguityReason | None
+    key_signature_fifths: int | None
+
+
+class SpelledNoteResponse(BaseModel):
+    id: int
+    pitch: int
+    symbolic_start_beats: float
+    symbolic_duration_beats: float
+    chord_group: int
+    hand: Hand
+    staff: Staff
+    voice: int | None = Field(default=None, ge=1)
+    spelled_step: str | None
+    spelled_alter: int | None = Field(default=None, ge=-2, le=2)
+    spelled_octave: int | None = Field(default=None, ge=-2, le=9)
+    spelling_confidence: float = Field(ge=0, le=1)
+    spelling_ambiguity_reason: SpellingAmbiguityReason | None
+
+
+class SpellingDiagnosticsResponse(BaseModel):
+    pitch_class_histogram: list[float]
+    best_key: str | None
+    best_key_correlation: float | None
+    runner_up_key: str | None
+    runner_up_key_correlation: float | None
+    key_correlation_margin: float = Field(ge=0, le=1)
+    plausible_keys: list[str]
+    candidate_set_sizes: list[int]
+    chord_consistency_application_count: int
+    melodic_rule_application_count: int
+    resolved_count: int
+    unknown_count: int
+    unknown_key_count: int
+    close_alternative_count: int
+
+
+class SpellingProvenanceResponse(BaseModel):
+    run_id: int
+    processor_name: str
+    processor_version: str
+    runtime: str
+    voice_run_id: int
+    input_fingerprint: str
+    configuration: dict[str, object]
+
+
+class SpellingResponse(BaseModel):
+    project: ProjectResponse
+    key: KeyResultResponse
+    note_count: int
+    preview_notes: list[SpelledNoteResponse]
+    diagnostics: SpellingDiagnosticsResponse
+    provenance: SpellingProvenanceResponse
     reused: bool

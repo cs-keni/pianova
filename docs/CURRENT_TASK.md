@@ -6,8 +6,8 @@ Key detection and enharmonic spelling over the verified notation-voice boundary.
 plan is `docs/KEY_SPELLING_PLAN.md`, drafted and locked through gstack plan-eng-review on
 2026-07-19 with a Codex outside-voice pass absorbed (report at the end of the plan file,
 verdict ENG CLEARED, no unresolved decisions). Codex's independent review found and closed two
-scoring-contract blockers; T1 pure engine and T2 checked persistence are implemented and
-verified. The next step is T3 (backend service and API integration). The prior voice plan
+scoring-contract blockers; T1 pure engine, T2 checked persistence, and T3 backend integration are
+implemented and verified. The next step is T4 (frontend workflow). The prior voice plan
 `docs/VOICE_SEPARATION_PLAN.md` is complete through T1-T7 and its decisions stay locked.
 
 ## Status
@@ -19,15 +19,16 @@ staff-scoped notation voices or typed successful unknowns. Genuine upstream reco
 atomically invalidates downstream state; matching evidence and settings reuse current results.
 The new pure tonal engine can estimate one global key or return a typed successful unknown, then
 spell notes deterministically with key, chord-group, and melodic context. Its exact four-state
-project key and tri-state note spelling contracts now persist through Alembic. It has no service
-or API integration yet, so the user-visible boundary truthfully remains notation voices.
+project key and tri-state note spelling contracts now persist through Alembic. The service/API
+boundary is available with hardened reuse, override recovery, and concurrency-safe upstream
+invalidation. The browser UI still truthfully ends at notation voices until T4.
 
 ## Verified behavior
 
 - Native Windows Python 3.11.9, FFprobe 8.0, and FFmpeg 8.0 are available in the runtime used by FastAPI.
 - The isolated worker resolves Basic Pitch 0.4.0, TensorFlow 2.15.0, NumPy 1.26.4, librosa 0.11.0, pretty-midi 0.2.11, and SciPy 1.17.1.
-- Ruff and formatting pass across the backend; strict mypy passes across 38 application source files.
-- 175 pytest tests pass using temporary Alembic-migrated SQLite databases. The 77 tests that
+- Ruff and formatting pass across the backend; strict mypy passes across 40 application source files.
+- 194 pytest tests pass using temporary Alembic-migrated SQLite databases. The 77 tests that
   predated the helper extraction also pass unmodified when the new helper test file is excluded.
 - Alembic upgrades through revision `20260719_0008`; `alembic check` reports no schema drift.
 - Twenty-seven focused persistence tests prove every valid key/spelling state, invalid
@@ -108,7 +109,22 @@ until the spelling boundary is verified.
 - Migration `20260719_0008` upgrades cleanly from the full historical chain and matches ORM
   metadata with no drift.
 
+## Delivered key/spelling backend boundary (T3)
+
+- `POST /api/projects/{project_id}/spell` estimates one global key or adopts a validated
+  standard-signature override, persists all spellings, and returns a bounded typed preview,
+  diagnostics, provenance, ownership/revision, and reuse state.
+- Matching results are reused only after validating run ownership, complete configuration,
+  project key state, note tri-state and MIDI round trips, diagnostics, and all counts.
+- One shared invalidation helper clears note spellings and project key state from genuine
+  quantization, interpretation, or voice recomputation. Reuse preserves spelling.
+- Both commit orders against all three upstream stages are tested. SQL-relative increments and
+  compare-and-swap predicates preserve every revision; the stale request fails cleanly.
+- Unknown key and spelling evidence remains a successful typed result. Invalid overrides are 422;
+  missing/stale voices and conflicts are structured 409s.
+
 ## Active blockers
 
-None. T3 can begin. The full generated-phrase flow still reaches the persisted voice boundary with
-five resolved voice-1 notes and zero unknowns; spelling remains intentionally unexposed until T3.
+None. T4 can begin. The full generated-phrase browser flow still reaches the persisted voice
+boundary with five resolved voice-1 notes and zero unknowns; the backend spelling endpoint is
+ready for the UI.

@@ -12,7 +12,11 @@ from app.core.errors import PianovaError
 from app.models.entities import (
     AssignmentAmbiguityReason,
     Hand,
+    KeyAmbiguityReason,
+    KeyMode,
+    KeySource,
     Project,
+    SpellingAmbiguityReason,
     Staff,
     VoiceAmbiguityReason,
 )
@@ -25,6 +29,7 @@ from app.schemas import (
     InterpretationProvenanceResponse,
     InterpretationResponse,
     InterpretedNoteResponse,
+    KeyResultResponse,
     MediaProcessResponse,
     NoteEventResponse,
     ProjectCreate,
@@ -33,6 +38,11 @@ from app.schemas import (
     QuantizationRequest,
     QuantizationResponse,
     QuantizedNoteResponse,
+    SpelledNoteResponse,
+    SpellingDiagnosticsResponse,
+    SpellingProvenanceResponse,
+    SpellingRequest,
+    SpellingResponse,
     TempoEstimateDiagnosticsResponse,
     TranscriptionProvenanceResponse,
     TranscriptionResponse,
@@ -46,9 +56,11 @@ from app.services.interpretation import InterpretationService
 from app.services.media import MediaService
 from app.services.projects import ProjectService
 from app.services.quantization import QuantizationService
+from app.services.spelling import SpellingService
 from app.services.storage import SUPPORTED_EXTENSIONS, UploadService
 from app.services.transcription import PREVIEW_NOTE_LIMIT, TranscriptionService
 from app.services.voices import VoiceService
+from app.symbolic.spelling import KeyName, key_signature_fifths
 
 router = APIRouter(prefix="/api")
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -446,6 +458,119 @@ def separate_project_voices(
             processor_version=str(provenance["processor_version"]),
             runtime=str(provenance["runtime"]),
             interpretation_run_id=interpretation_run_id,
+            input_fingerprint=str(provenance["input_fingerprint"]),
+            configuration=provenance,
+        ),
+        reused=result.reused,
+    )
+
+
+@router.post(
+    "/projects/{project_id}/spell",
+    response_model=SpellingResponse,
+)
+def spell_project_notes(
+    project_id: str,
+    payload: SpellingRequest,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> SpellingResponse:
+    project = session.get(Project, project_id)
+    if project is None:
+        raise PianovaError("project_not_found", "The requested project does not exist.", 404)
+    result = SpellingService(session, settings).spell(project, payload)
+    provenance = result.provenance
+    voice_run_id = provenance.get("voice_run_id")
+    if not isinstance(voice_run_id, int) or isinstance(voice_run_id, bool):
+        raise PianovaError(
+            "spelling_provenance_invalid",
+            "The successful pitch spelling has invalid provenance.",
+            500,
+        )
+
+    preview_notes: list[SpelledNoteResponse] = []
+    for note in result.notes[: settings.spelling_preview_note_limit]:
+        spelling = result.spellings[note.id]
+        if (
+            note.symbolic_start_beats is None
+            or note.symbolic_duration_beats is None
+            or note.chord_group is None
+        ):
+            raise PianovaError(
+                "spelling_result_invalid",
+                "The pitch-spelling preview has incomplete timing.",
+                500,
+            )
+        preview_notes.append(
+            SpelledNoteResponse(
+                id=note.id,
+                pitch=note.pitch,
+                symbolic_start_beats=note.symbolic_start_beats,
+                symbolic_duration_beats=note.symbolic_duration_beats,
+                chord_group=note.chord_group,
+                hand=note.hand,
+                staff=note.staff,
+                voice=note.voice,
+                spelled_step=spelling.step,
+                spelled_alter=spelling.alter,
+                spelled_octave=spelling.octave,
+                spelling_confidence=spelling.spelling_confidence,
+                spelling_ambiguity_reason=(
+                    SpellingAmbiguityReason(spelling.spelling_ambiguity_reason)
+                    if spelling.spelling_ambiguity_reason
+                    else None
+                ),
+            )
+        )
+
+    key = result.key
+    key_fifths: int | None = None
+    if key.tonic_step is not None and key.tonic_alter is not None and key.mode is not None:
+        key_fifths = key_signature_fifths(
+            KeyName(
+                key.tonic_step,
+                key.tonic_alter,
+                key.mode,
+            )
+        )
+    diagnostics = result.diagnostics
+    return SpellingResponse(
+        project=ProjectResponse.model_validate(project),
+        key=KeyResultResponse(
+            source=KeySource(key.source),
+            tonic_step=key.tonic_step,
+            tonic_alter=key.tonic_alter,
+            mode=KeyMode(key.mode) if key.mode else None,
+            confidence=key.confidence,
+            ambiguity_reason=(
+                KeyAmbiguityReason(key.ambiguity_reason) if key.ambiguity_reason else None
+            ),
+            key_signature_fifths=key_fifths,
+        ),
+        note_count=len(result.notes),
+        preview_notes=preview_notes,
+        diagnostics=SpellingDiagnosticsResponse(
+            pitch_class_histogram=list(diagnostics.pitch_class_histogram),
+            best_key=diagnostics.best_key,
+            best_key_correlation=diagnostics.best_key_correlation,
+            runner_up_key=diagnostics.runner_up_key,
+            runner_up_key_correlation=diagnostics.runner_up_key_correlation,
+            key_correlation_margin=diagnostics.key_correlation_margin,
+            plausible_keys=list(diagnostics.plausible_keys),
+            candidate_set_sizes=list(diagnostics.candidate_set_sizes),
+            chord_consistency_application_count=(diagnostics.chord_consistency_application_count),
+            melodic_rule_application_count=diagnostics.melodic_rule_application_count,
+            resolved_count=diagnostics.resolved_count,
+            unknown_count=diagnostics.unknown_count,
+            unknown_key_count=diagnostics.unknown_key_count,
+            close_alternative_count=diagnostics.close_alternative_count,
+        ),
+        provenance=SpellingProvenanceResponse(
+            run_id=result.run.id,
+            processor_name=str(provenance["processor_name"]),
+            processor_version=str(provenance["processor_version"]),
+            runtime=str(provenance["runtime"]),
+            voice_run_id=voice_run_id,
             input_fingerprint=str(provenance["input_fingerprint"]),
             configuration=provenance,
         ),
