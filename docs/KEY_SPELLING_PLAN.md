@@ -1,7 +1,6 @@
 # Key Detection and Enharmonic Spelling Plan
 
-Status: locked after independent Codex review 2026-07-19. T1-T5 are complete and verified;
-T6 final consistency sweep is next.
+Status: complete and verified 2026-07-23. All locked tasks T1-T6 are delivered.
 
 ## Goal
 
@@ -81,9 +80,10 @@ boundary strictly needs. "Key" in this boundary means one global tonal center fo
   deferred-stage copy) is established; this milestone extends it with one action and one card.
 - The quantization stage ships the override precedent this plan mirrors: explicit BPM with
   `tempo_source = override`, gates bypassed, provenance recorded.
-- No notation or key-analysis library is in use in the core backend (`pretty-midi` is declared
-  in `backend/pyproject.toml` but imported nowhere — T6 audits whether to remove or document
-  it). music21 key analysis was considered and rejected on the voice-boundary precedent: no
+- No notation or key-analysis library is in use in the core backend. `pretty-midi` is declared
+  only in the isolated transcription extra: Basic Pitch imports it and returns the
+  `PrettyMIDI` object used to write the raw-MIDI artifact, so T6 retained the verified 0.2.11 pin.
+  music21 key analysis was considered and rejected on the voice-boundary precedent: no
   typed unknowns, no provenance, heavyweight runtime for two ~100-line deterministic kernels.
   No new dependency is added.
 
@@ -690,12 +690,14 @@ sweep, not the documentation step.
     five-note flow proves `insufficient_notes`, selective D4 resolution, and explicit C-major
     recovery; a separate twelve-note real transcription proves automatic C-major estimation
     and zero-unknown spelling.
-- [ ] **T6 (P2)** — shared context sweep — final consistency pass over configuration, READMEs,
+- [x] **T6 (P2)** — shared context sweep — final consistency pass over configuration, READMEs,
   architecture, pipeline, data model, research, evaluation, roadmap, current task, handoff,
   and engineering log. Includes the pretty-midi audit (review finding 2): confirm it is
   genuinely unused and remove it, or document why it stays declared.
   - Files: `.env.example`, `README.md`, `backend/README.md`, `docs/`
-  - Verify: `git diff --check` and stale-claim search
+  - Verified: every spelling setting is represented in `.env.example`; the cross-document status
+    and stale-claim sweep passes. `pretty-midi` stays pinned because Basic Pitch imports it in the
+    isolated worker and returns its object for raw-MIDI serialization.
 
 ### Parallelization
 
@@ -739,7 +741,7 @@ unique above-margin cross-key agreement with worst-case support.
 persistence are sound. Disagreement was strategic (build order, unknown semantics) and was
 resolved by the user in favor of the settled decisions.
 
-**VERDICT:** ENG CLEARED — T1-T5 complete; ready to implement T6. Canonical tonic naming, D4
+**VERDICT:** MILESTONE COMPLETE — T1-T6 implemented and verified. Canonical tonic naming, D4
 context-free agreement, chord_group/float contract, degenerate gates, and the pointer-coupled
 check are locked into the plan above.
 

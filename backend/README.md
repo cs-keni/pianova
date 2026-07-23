@@ -16,7 +16,7 @@ uvicorn app.main:app --reload --port 18080
 The implemented API surface is `GET /api/health`, `GET /api/config`,
 `GET /api/dependencies`, `POST /api/projects`, `POST /api/projects/{project_id}/upload`,
 `POST /api/projects/{project_id}/process-media`, `POST /api/projects/{project_id}/transcribe`,
-`POST /api/projects/{project_id}/quantize`, and
+`POST /api/projects/{project_id}/quantize`,
 `POST /api/projects/{project_id}/interpret`,
 `POST /api/projects/{project_id}/separate-voices`, and
 `POST /api/projects/{project_id}/spell`. Interactive OpenAPI documentation is available at
@@ -29,6 +29,10 @@ py -3.11 -m venv .venv-transcription
 .\.venv-transcription\Scripts\python.exe -m pip install -e ".\backend[transcription]"
 .\.venv-transcription\Scripts\python.exe -m app.transcription.worker --probe
 ```
+
+The transcription extra intentionally pins `pretty-midi==0.2.11`. Pianova does not import it in
+the API process, but Basic Pitch imports it in the isolated worker and returns its `PrettyMIDI`
+object for raw-MIDI serialization; the explicit pin preserves the verified worker stack.
 
 ```powershell
 ruff check .

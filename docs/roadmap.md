@@ -11,17 +11,20 @@ Pianova is built as verified vertical slices. A milestone is complete only when 
 7. **Voice separation: complete.** Shared orchestration, the deterministic per-staff
    conflict-graph engine, checked persistence, API/service, hardened reuse, concurrency-safe
    cascade invalidation, UI, live browser coverage, and documentation are complete.
-8. **Key-aware spelling: in progress (T5/6 complete).** The pure engine, checked persistence,
-   service/API, hardened reuse, all upstream invalidation cascades, and both-order concurrency
-   coverage are complete. The frontend action, key recovery selector/card, spelling evidence, and
-   component coverage are complete. Live verification proves both insufficient-key override
-   recovery and automatic resolved-key spelling. Only the final documentation sweep remains.
-9. **MusicXML and optional rendering.** Editable MusicXML first; MuseScore PDF/SVG degrades independently.
-10. **Inspection and correction.** Note table, piano roll, synchronized playback, edits, and artifact regeneration.
-11. **Evaluation.** Reproducible benchmark corpus, transcription metrics, notation-readability review, and regression reports.
-12. **Synthesia extraction.** Visual note detection only after the audio pipeline is stable.
-13. **Audio-video fusion.** Confidence-aware multimodal note evidence and conflict resolution.
-14. **Model improvements.** Custom training or fine-tuning only when measured failure modes justify it.
+8. **Key-aware spelling: complete.** The pure engine, checked persistence, service/API, hardened
+   reuse, all upstream invalidation cascades, both-order concurrency coverage, frontend recovery
+   flow, component coverage, live insufficient-key override recovery, automatic resolved-key
+   spelling, and final documentation audit are complete.
+9. **Cleaned MIDI.** Export the selected tempo and readable symbolic timing without discarding
+   the immutable raw MIDI or performed note evidence.
+10. **MusicXML.** Generate and validate editable notation independently of any renderer.
+11. **Optional score rendering.** Produce PDF/SVG through MuseScore when available; MusicXML
+    remains usable when it is absent.
+12. **Inspection and correction.** Note table, piano roll, synchronized playback, edits, and artifact regeneration.
+13. **Evaluation.** Reproducible benchmark corpus, transcription metrics, notation-readability review, and regression reports.
+14. **Synthesia extraction.** Visual note detection only after the audio pipeline is stable.
+15. **Audio-video fusion.** Confidence-aware multimodal note evidence and conflict resolution.
+16. **Model improvements.** Custom training or fine-tuning only when measured failure modes justify it.
 
 Cloud deployment, authentication, payments, mobile apps, distributed queues, and collaborative editing remain outside the local-first MVP.
 

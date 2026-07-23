@@ -267,3 +267,23 @@
   deterministic estimator to select C major and resolve every spelling.
 - The optimized Next.js build and all four native Chromium flows pass. These fixtures prove
   orchestration and UI truthfulness, not corpus-scale key or spelling accuracy.
+
+## 2026-07-23 — Key/spelling milestone consistency audit
+
+- Swept configuration, root/backend/frontend READMEs, architecture, pipeline, data model,
+  research, evaluation, roadmap, shared task/handoff state, and the locked plan against the
+  delivered T1-T5 behavior. Spelling is now consistently described as implemented and
+  live-verified.
+- `pretty-midi` is not imported by Pianova application code, but Basic Pitch 0.4.0 declares
+  `pretty-midi>=0.2.9`, imports it in inference and note creation, and returns the `PrettyMIDI`
+  object whose `write` method creates Pianova's raw-MIDI artifact. Retain the explicit verified
+  `pretty-midi==0.2.11` transcription-extra pin for runtime reproducibility.
+- `.env.example` already contained every effective key/spelling setting, so no configuration
+  values changed during the audit.
+- The sweep caught a roadmap drift against `first.md`: cleaned MIDI had disappeared as an
+  explicit milestone even though the source-of-truth order requires it before MusicXML. Restored
+  cleaned MIDI as the next unstarted boundary and kept MusicXML immediately after it.
+- Final verification passed Ruff and formatting across 60 backend files, strict mypy across 40
+  application sources, 194 pytest tests, a fresh full Alembic upgrade with no schema drift,
+  ESLint, TypeScript, five component tests, the optimized Next.js build, and four live Chromium
+  flows through the complete spelling boundary.

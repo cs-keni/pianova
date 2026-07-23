@@ -87,9 +87,10 @@ include the pitch-class histogram, best/runner correlations, plausible keys, can
 context-rule applications, and per-reason unknown counts. These tests prove the deterministic
 contract, not corpus-scale musical accuracy; key and spelling scores remain uncalibrated.
 
-Frontend component coverage gates the action on successful interpretation, disables duplicate
-submits, recovers from an API failure, and renders resolved/unknown totals, per-staff counts,
-decision scores, and typed unknown reasons without presenting unknown notes as complete notation.
+Frontend component coverage gates spelling on successful voice separation, disables duplicate
+submits, recovers from an API failure, sends automatic and override requests, and renders
+resolved/unknown totals, key source/state, written pitches, decision scores, and typed unknown
+reasons without presenting unknown notes as complete notation.
 
 The first live generated phrase contains five distinct tones at 120 BPM. Native Windows
 FFprobe/FFmpeg normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the

@@ -9,7 +9,8 @@ Next.js browser UI
   | typed JSON and multipart HTTP
   v
 FastAPI routes
-  |-- services: project lifecycle, storage, media preparation, transcription, timing, interpretation, voices
+  |-- services: project lifecycle, storage, media preparation, transcription, timing,
+  |             interpretation, voices, spelling
   |   `-- stage_runner: shared symbolic-stage transaction boundaries
   |-- repositories: SQLAlchemy persistence access
   |-- core: settings, errors, capabilities, executable probes
@@ -108,11 +109,11 @@ notation-library, or ML dependency. `InterpretationService` validates persisted 
 trusting stored JSON. A genuine re-quantization clears all downstream assignments and its current
 run pointer in the same transaction; quantization reuse leaves interpretation intact.
 
-Quantization, interpretation, and voice separation share only their transaction shell through
+Quantization, interpretation, voice separation, and pitch spelling share only their transaction shell through
 `app.services.stage_runner`: create and commit the durable RUNNING audit row, enforce the
 stage-owned project compare-and-swap before committing success, and mark the run failed after the
 caller rolls back. Fingerprints, reuse validation, note writes, CAS predicates, and structured
-errors remain inside each stage service. This supports all three symbolic services without turning
+errors remain inside each stage service. This supports all four symbolic services without turning
 stage-specific policy into hidden framework behavior.
 
 Voice separation is a lightweight, artifact-free boundary:
@@ -189,6 +190,11 @@ TensorFlow, NumPy, librosa, or pretty_midi. `app.transcription.worker` owns thos
 `.venv-transcription`, converts Basic Pitch tuples into a versioned typed contract, and writes MIDI.
 This isolates TensorFlow's large pinned dependency set and prevents model imports from affecting
 ordinary API tests and startup when the optional environment is absent.
+
+`pretty-midi==0.2.11` remains an explicit transcription-extra pin even though Pianova has no
+direct import: Basic Pitch imports it in the worker and returns a `PrettyMIDI` instance whose
+`write` method produces the raw-MIDI artifact. Pinning the verified indirect runtime dependency
+prevents an unconstrained Basic Pitch-compatible release from changing worker behavior.
 
 ## Trade-offs
 

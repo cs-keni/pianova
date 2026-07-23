@@ -14,7 +14,8 @@ The current backend implements secure ingestion, typed media preparation, raw Ba
 | Tempo and quantization | Raw timing, pitch, confidence | Global BPM, simple meter, chord groups, symbolic onsets/durations, diagnostics | Sparse/ambiguous tempo, unsupported meter, dense same-pitch rhythm, concurrent update | Implemented |
 | Hands and notation staves | Quantized notes | Persisted assignments, confidence, reasons, diagnostics | Missing/stale timing, work bound, concurrent update | Implemented |
 | Voice separation | Interpreted notes | Staff-scoped notation voices, decision scores, typed unknowns | Missing/stale interpretation, concurrent update | Implemented |
-| Key and pitch spelling | Voiced notes | Persisted tonal context and spelled note events | Missing/stale voice state, invalid override, concurrent update; ambiguity succeeds as typed evidence | Implemented backend |
+| Key and pitch spelling | Voiced notes | Persisted tonal context and spelled note events | Missing/stale voice state, invalid override, concurrent update; ambiguity succeeds as typed evidence | Implemented and live-verified |
+| Cleaned MIDI | Quantized, interpreted, spelled notes | Readable tempo-grid MIDI artifact | Incomplete symbolic state, invalid timing, serialization or finalization failure | Not implemented |
 | MusicXML | Clean symbolic score | Editable MusicXML | Invalid measures, voices, durations, spelling | Not implemented |
 | Score rendering | MusicXML | PDF/SVG | MuseScore missing or render failure | Not implemented |
 | User correction | Note events and score state | Revised symbolic score and artifacts | Invalid edits or regeneration failure | Not implemented |
@@ -179,6 +180,9 @@ All artifact kinds are reserved in the schema: source, normalized audio, note-ev
 - `PIANOVA_INTERPRETATION_PREVIEW_NOTE_LIMIT`, `PIANOVA_INTERPRETATION_ALGORITHM_VERSION`: response bound and reuse identity.
 - `PIANOVA_VOICE_CLOSE_SEPARATION_SEMITONES`, `PIANOVA_VOICE_HIGH_SEPARATION_SEMITONES`: typed-unknown and high-confidence separation thresholds.
 - `PIANOVA_VOICE_PREVIEW_NOTE_LIMIT`, `PIANOVA_VOICE_ALGORITHM_VERSION`: response bound and reuse identity.
+- `PIANOVA_SPELLING_KEY_MINIMUM_NOTES`, `PIANOVA_SPELLING_KEY_MINIMUM_DISTINCT_PITCH_CLASSES`: absolute global-key evidence gates.
+- `PIANOVA_SPELLING_KEY_AMBIGUITY_MARGIN`, `PIANOVA_SPELLING_CLOSE_MARGIN`: key-winner and written-pitch decision thresholds.
+- `PIANOVA_SPELLING_PREVIEW_NOTE_LIMIT`, `PIANOVA_SPELLING_ALGORITHM_VERSION`: response bound and reuse identity.
 - `PIANOVA_DATABASE_URL`: SQLite or another SQLAlchemy URL.
 
 Related: [architecture](architecture.md), [data model](data-model.md), and the root [run guide](../README.md#run-pianova).

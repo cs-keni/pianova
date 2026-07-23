@@ -2,6 +2,12 @@
 
 ## What changed
 
+- 2026-07-23 (T6): completed the key/spelling milestone consistency sweep across configuration,
+  both READMEs, architecture, pipeline, data model, research, evaluation, roadmap, task state,
+  handoff, engineering log, and the locked plan. Confirmed that `pretty-midi` is an indirect but
+  active worker dependency: Basic Pitch imports it and returns the `PrettyMIDI` instance used to
+  write raw MIDI, so the verified 0.2.11 pin remains intentional. The milestone is complete;
+  cleaned MIDI is the next unstarted boundary, followed by MusicXML.
 - 2026-07-23 (T5): extended live Playwright coverage through the complete key/spelling workflow.
   The five-note real transcription now proves typed insufficient-key evidence, selective D4
   resolution, and explicit C-major recovery. A separate twelve-note real transcription proves
@@ -88,6 +94,11 @@
 
 ## Checks run
 
+- T6 final gate: Ruff and formatting passed across 60 backend files; strict mypy passed across 40
+  application sources; all 194 pytest tests passed. A fresh SQLite database upgraded through
+  `20260719_0008` and `alembic check` found no drift. ESLint, TypeScript, all five Vitest tests,
+  the optimized Next.js build, and all four live Chromium tests passed. `git diff --check` and the
+  current-state stale-claim sweep passed.
 - T5: the optimized Next.js production build passed; all four live Chromium tests passed against
   migrated FastAPI and Next.js servers with real FFprobe, FFmpeg, Basic Pitch, and TensorFlow.
 - T4: ESLint and TypeScript passed; all five Vitest component tests passed.
@@ -97,7 +108,7 @@
 - T2: Ruff and formatting passed across the backend; strict mypy passed across 38 application
   sources; all 175 tests passed, including 27 focused persistence tests; a fresh SQLite database
   upgraded through `20260719_0008`; `alembic check` found no model drift.
-- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 38 source files;
+- Backend: Ruff passed; Ruff formatting check passed; strict mypy passed across 40 source files;
   pytest passed 194 tests. The focused spelling engine suite passed all 32 tests with 100% module
   coverage, and all 27 spelling persistence tests passed.
 - Database: Alembic upgraded through `20260719_0008`; `alembic check` found no drift.
@@ -105,15 +116,15 @@
 - Browser: Playwright passed four live Chromium tests. The audio flows run real FFprobe, FFmpeg,
   Basic Pitch/TensorFlow, quantization, hand/staff interpretation, notation-voice separation,
   insufficient-key override recovery, and automatic resolved-key spelling.
-- Repository: `git diff --check` passed before delivery review.
+- Repository: `git diff --check` and the current-state stale-claim sweep passed before delivery.
 
 ## Remaining work
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
 The key-detection and enharmonic-spelling plan is now reviewed and locked at
-`docs/KEY_SPELLING_PLAN.md`; T1-T5 are complete and the next step is the T6 consistency sweep.
-Cleaned MIDI, MusicXML, rendering, correction tools,
-broad accuracy benchmarks, and Synthesia work remain deferred in that order.
+`docs/KEY_SPELLING_PLAN.md`; T1-T6 are complete. Cleaned MIDI is the next ordered boundary and
+has not started; editable MusicXML follows it. Rendering, correction tools, broad accuracy
+benchmarks, and Synthesia work remain deferred.
 
 ## Known risks
 
@@ -132,5 +143,6 @@ broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 The hand and staff interpretation milestone is shipped to `origin/main` as `9464c01`, and its
 reviewed voice plan is shipped as `b20fb17`. Voice delivery slices are T1 `14999b2`, T2 `9c59b24`,
 T3 `8066270`, T4 `d6c2c30`, T5 `ee269f7`, and T6 `2a938fc`. T7 completed the shared-context sweep
-and final verification as `3aecee2`. The key-spelling plan shipped as `c6e28ba`; this delivery adds
-the corrected T1 pure engine and matching shared-context updates.
+and final verification as `3aecee2`. The key-spelling plan shipped as `c6e28ba`; key/spelling
+delivery slices are T1 `2dab1e0`, T2 `3933a73`, T3 `1502bb8`, T4 `cbd1ed0`, and T5 `0627442`.
+T6 closes the milestone in this delivery.

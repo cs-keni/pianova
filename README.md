@@ -61,6 +61,10 @@ FastAPI
                               +-- staff-scoped voice 1/2
                               +-- decision scores + typed unknowns
                               +-- conflict diagnostics + provenance
+  +-- key and spelling ---> persisted voiced notes
+                             +-- estimated/overridden global key
+                             +-- written pitch + typed unknowns
+                             +-- tonal diagnostics + provenance
 ```
 
 FastAPI owns persistence and local artifacts. The frontend consumes typed HTTP contracts and never imports backend code. Later processing stages will consume typed musical models without depending on the UI. See [architecture](docs/architecture.md), [pipeline](docs/pipeline.md), and [data model](docs/data-model.md).
@@ -205,7 +209,8 @@ verifies video metadata, and rejects content that only pretends to be WAV. The l
 All backend variables use the `PIANOVA_` prefix. Settings cover database/workspace paths,
 FFmpeg/FFprobe/MuseScore, the isolated transcription Python executable, upload limits, subprocess
 timeouts, normalization format, Basic Pitch thresholds/frequency range, quantization gates and
-grid behavior, interpretation scoring/work bounds, logging, and local CORS origins. Backend defaults are in [.env.example](.env.example).
+grid behavior, interpretation/voice/spelling scoring and response bounds, logging, and local CORS
+origins. Backend defaults are in [.env.example](.env.example).
 `NEXT_PUBLIC_PIANOVA_API_URL` belongs in `frontend/.env.local`; see
 [frontend/.env.example](frontend/.env.example).
 
@@ -256,9 +261,8 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 
 Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, readable
 global timing, independent hand/staff interpretation, notation-voice separation, and the
-key-aware spelling backend/UI and live-verification boundary are complete. Next: finish the
-milestone consistency sweep, then MusicXML, optional score rendering, correction tools, evaluation,
-and finally Synthesia analysis. See the
+key-aware spelling boundary are complete and live-verified. Next: cleaned MIDI, MusicXML,
+optional score rendering, correction tools, evaluation, and finally Synthesia analysis. See the
 [milestone roadmap](docs/roadmap.md).
 
 ## License

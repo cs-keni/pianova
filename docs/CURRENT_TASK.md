@@ -2,13 +2,12 @@
 
 ## Active milestone
 
-Key detection and enharmonic spelling over the verified notation-voice boundary. The execution
-plan is `docs/KEY_SPELLING_PLAN.md`, drafted and locked through gstack plan-eng-review on
-2026-07-19 with a Codex outside-voice pass absorbed (report at the end of the plan file,
-verdict ENG CLEARED, no unresolved decisions). Codex's independent review found and closed two
-scoring-contract blockers; implementation is verified through T5, including both live browser
-contracts. The next step is T6 (final shared-context and dependency consistency sweep). The prior voice plan
-`docs/VOICE_SEPARATION_PLAN.md` is complete through T1-T7 and its decisions stay locked.
+The locked key-detection and enharmonic-spelling milestone is complete through T1-T6. Its
+execution and absorbed independent review are recorded in `docs/KEY_SPELLING_PLAN.md`; the final
+verdict is MILESTONE COMPLETE with no unresolved decisions. The next ordered product boundary is
+cleaned MIDI, but no cleaned-MIDI planning or implementation has started. Editable MusicXML
+follows it. The prior voice plan
+`docs/VOICE_SEPARATION_PLAN.md` remains complete through T1-T7.
 
 ## Status
 
@@ -17,12 +16,13 @@ independent left/right hand and bass/treble notation-staff assignments, competin
 and explicit typed reasons when the evidence remains unknown. Interpreted notes then receive
 staff-scoped notation voices or typed successful unknowns. Genuine upstream recomputation
 atomically invalidates downstream state; matching evidence and settings reuse current results.
-The new pure tonal engine can estimate one global key or return a typed successful unknown, then
+The pure tonal engine can estimate one global key or return a typed successful unknown, then
 spell notes deterministically with key, chord-group, and melodic context. Its exact four-state
 project key and tri-state note spelling contracts now persist through Alembic. The service/API
 boundary is available with hardened reuse, override recovery, and concurrency-safe upstream
-invalidation. The browser UI now exposes the same contract with an automatic/override selector,
-typed key card, bounded spelling evidence, and truthful downstream deferrals.
+invalidation. The browser UI exposes the same contract with an automatic/override selector, typed
+key card, bounded spelling evidence, and truthful downstream deferrals. Both its
+insufficient-evidence recovery path and resolved automatic-key path are live-verified.
 
 ## Verified behavior
 
@@ -86,8 +86,8 @@ The reviewed key-detection and enharmonic-spelling plan now exists at
 stage, global key only with canonical tonic naming (fewer accidentals; the six-accidental tie
 breaks flat), context-free D4 agreement under unknown keys, a float + `chord_group` engine
 contract (symbolic beats persist as floats, never Fractions), degenerate-evidence gates before
-correlation, and a pointer-coupled four-state key check. Do not begin MusicXML or rendering
-until the spelling boundary is verified.
+correlation, and a pointer-coupled four-state key check. The prerequisite for cleaned MIDI is now
+satisfied; cleaned MIDI, MusicXML, and rendering remain unstarted.
 
 ## Delivered pure key/spelling engine (T1)
 
@@ -150,7 +150,18 @@ until the spelling boundary is verified.
   estimates C major with every written pitch resolved.
 - The production build and four live Playwright flows pass.
 
+## Delivered milestone consistency boundary (T6)
+
+- Configuration, both READMEs, architecture, pipeline, data model, research, evaluation, roadmap,
+  current task, handoff, engineering log, and the locked plan were checked against the delivered
+  implementation.
+- The isolated worker's `pretty-midi` dependency is intentionally retained at 0.2.11: Basic Pitch
+  imports it and returns the `PrettyMIDI` object used for raw-MIDI serialization even though the
+  Pianova API has no direct import.
+- Key-aware spelling is now marked complete; the next ordered boundary from `first.md` is cleaned
+  MIDI, followed by MusicXML.
+
 ## Active blockers
 
-None. T6 can begin. MusicXML remains gated until the final documentation and dependency audit is
-complete.
+None. Future work should begin by planning the cleaned-MIDI boundary rather than treating cleaned
+MIDI, MusicXML, or rendering as already implemented.
