@@ -2,6 +2,11 @@
 
 ## What changed
 
+- 2026-07-23 (T5): extended live Playwright coverage through the complete key/spelling workflow.
+  The five-note real transcription now proves typed insufficient-key evidence, selective D4
+  resolution, and explicit C-major recovery. A separate twelve-note real transcription proves
+  automatic C-major estimation and zero-unknown written pitches. The terminal UI is now asserted
+  as step eight with truthful MusicXML/rendering deferrals.
 - 2026-07-23 (T4): extended the Next.js staged workflow through key detection and written pitch.
   Added typed API models, the explicit post-voice action, pending/error recovery, duplicate-submit
   prevention, all 30 standard-signature overrides, clearing back to automatic estimation, distinct
@@ -83,6 +88,8 @@
 
 ## Checks run
 
+- T5: the optimized Next.js production build passed; all four live Chromium tests passed against
+  migrated FastAPI and Next.js servers with real FFprobe, FFmpeg, Basic Pitch, and TensorFlow.
 - T4: ESLint and TypeScript passed; all five Vitest component tests passed.
 - T3: Ruff and formatting passed across the backend; strict mypy passed across 40 application
   sources; all 194 backend tests passed. The 43-test failure-path suite includes nine spelling
@@ -95,15 +102,17 @@
   coverage, and all 27 spelling persistence tests passed.
 - Database: Alembic upgraded through `20260719_0008`; `alembic check` found no drift.
 - Frontend: ESLint and TypeScript passed; Vitest passed five tests; the Next.js production build passed.
-- Browser: Playwright passed three live Chromium tests. The primary flow runs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM quantization, hand/staff interpretation, and notation-voice separation.
+- Browser: Playwright passed four live Chromium tests. The audio flows run real FFprobe, FFmpeg,
+  Basic Pitch/TensorFlow, quantization, hand/staff interpretation, notation-voice separation,
+  insufficient-key override recovery, and automatic resolved-key spelling.
 - Repository: `git diff --check` passed before delivery review.
 
 ## Remaining work
 
 Voice separation is complete and verified through T1-T7 in `docs/VOICE_SEPARATION_PLAN.md`.
 The key-detection and enharmonic-spelling plan is now reviewed and locked at
-`docs/KEY_SPELLING_PLAN.md`; T1-T4 are complete and the next step is T5 live browser verification,
-followed by the T6 consistency sweep. Cleaned MIDI, MusicXML, rendering, correction tools,
+`docs/KEY_SPELLING_PLAN.md`; T1-T5 are complete and the next step is the T6 consistency sweep.
+Cleaned MIDI, MusicXML, rendering, correction tools,
 broad accuracy benchmarks, and Synthesia work remain deferred in that order.
 
 ## Known risks

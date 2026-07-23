@@ -5,14 +5,12 @@ import { join } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-function quantizableWav(): Buffer {
+function melodyWav(noteStarts: number[], frequencies: number[]): Buffer {
   const sampleRate = 22050;
-  // Two attacks are offset by one analysis frame so Basic Pitch emits stable
-  // 43-frame spacing across the real worker boundary.
-  const noteStarts = [0.25, 0.75, 1.25, 1.74, 2.26];
-  const frequencies = [261.63, 293.66, 329.63, 349.23, 392.0];
   const noteDuration = 0.34;
-  const sampleCount = Math.ceil(sampleRate * 2.75);
+  const sampleCount = Math.ceil(
+    sampleRate * (Math.max(...noteStarts) + noteDuration + 0.15),
+  );
   const dataSize = sampleCount * 2;
   const buffer = Buffer.alloc(44 + dataSize);
   buffer.write("RIFF", 0);
@@ -44,6 +42,26 @@ function quantizableWav(): Buffer {
     buffer.writeInt16LE(sample, 44 + index * 2);
   }
   return buffer;
+}
+
+function quantizableWav(): Buffer {
+  // Two attacks are offset by one analysis frame so Basic Pitch emits stable
+  // 43-frame spacing across the real worker boundary.
+  return melodyWav(
+    [0.25, 0.75, 1.25, 1.74, 2.26],
+    [261.63, 293.66, 329.63, 349.23, 392.0],
+  );
+}
+
+function clearCMajorWav(): Buffer {
+  const frequencies = [
+    261.63, 329.63, 392.0, 523.25, 349.23, 392.0, 329.63, 261.63, 293.66, 349.23,
+    440.0, 392.0,
+  ];
+  return melodyWav(
+    frequencies.map((_, index) => 0.25 + index * 0.5),
+    frequencies,
+  );
 }
 
 function tinyMp4(): Buffer {
@@ -91,6 +109,7 @@ test("separates notation voices for a real 120 BPM transcription", async ({ page
   await expect(page.getByText("Piano transcription", { exact: true })).toBeVisible();
   await expect(page.getByText("Hand and staff assignment", { exact: true })).toBeVisible();
   await expect(page.getByText("Notation voice separation", { exact: true })).toBeVisible();
+  await expect(page.getByText("Key detection and pitch spelling", { exact: true })).toBeVisible();
   await expect(page.getByText("not implemented").first()).toBeVisible();
 
   const title = `Playwright study ${Date.now()}`;
@@ -139,12 +158,77 @@ test("separates notation voices for a real 120 BPM transcription", async ({ page
   await expect(page.getByText("5 resolved · 0 unknown", { exact: true })).toBeVisible();
   await expect(page.getByText("Notation voice evidence", { exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Voice 1", exact: true })).toHaveCount(5);
-  await expect(page.getByText("Step 7 of 7", { exact: true })).toBeVisible();
+  await expect(page.getByText("Step 7 of 8", { exact: true })).toBeVisible();
   await expect(
     page.getByText(
       "Unknown voices remain evidence for review. Key detection, pitch spelling, cleaned MIDI, and score generation have not started.",
     ),
   ).toBeVisible();
+
+  await page.getByRole("button", { name: "Detect key & spell notes" }).click();
+  await expect(page.getByText("Key detection and pitch spelling ready")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Key uncertain" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Insufficient notes. Choose the intended key below to respell these notes.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText("2 resolved · 3 unknown", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Unknown", exact: true })).toHaveCount(3);
+
+  await page.getByLabel("Key signature").selectOption("C major");
+  await page.getByRole("button", { name: "Detect key & spell notes" }).click();
+  await expect(page.getByText("User-chosen key", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "C major", exact: true })).toBeVisible();
+  await expect(page.getByText("Applied as an explicit override.", { exact: true })).toBeVisible();
+  await expect(page.getByText("5 resolved · 0 unknown", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "C4", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("cell", { name: "D4", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("cell", { name: "E4", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("cell", { name: "F4", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("cell", { name: "G4", exact: true })).toHaveCount(1);
+  await expect(page.getByText("Step 8 of 8", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText(
+      "Unknown spellings remain evidence for review. Cleaned MIDI, MusicXML, and score rendering have not started.",
+    ),
+  ).toBeVisible();
+});
+
+test("automatically estimates a clear key and spells a real transcription", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/");
+  await expect(page.getByText("API connected")).toBeVisible();
+
+  await page.getByLabel("Project name").fill(`C major study ${Date.now()}`);
+  await page.getByRole("button", { name: "Create local project" }).click();
+  await page.getByLabel("Piano audio or video").setInputFiles({
+    name: "c-major-study.wav",
+    mimeType: "audio/wav",
+    buffer: clearCMajorWav(),
+  });
+  await page.getByRole("button", { name: "Upload source file" }).click();
+  await page.getByRole("button", { name: "Inspect and prepare audio" }).click();
+  await expect(page.getByText("Media inspected and audio normalized")).toBeVisible();
+  await page.getByRole("button", { name: "Transcribe piano" }).click();
+  await expect(page.getByText("Raw transcription complete")).toBeVisible({ timeout: 60_000 });
+
+  await page.getByLabel("Tempo override (BPM)").fill("120");
+  await page.getByRole("button", { name: "Estimate tempo and quantize" }).click();
+  await expect(page.getByText("Readable timing ready", { exact: true }).last()).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.getByRole("button", { name: "Assign hands and staves" }).click();
+  await expect(page.getByText("Hand and staff interpretation ready")).toBeVisible();
+  await page.getByRole("button", { name: "Separate voices" }).click();
+  await expect(page.getByText("Notation voice separation ready", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Detect key & spell notes" }).click();
+
+  await expect(page.getByText("Estimated key", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "C major", exact: true })).toBeVisible();
+  await expect(page.getByText(/uncalibrated decision score · 0 fifths/)).toBeVisible();
+  await expect(page.getByText(/resolved · 0 unknown/, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Step 8 of 8", { exact: true })).toBeVisible();
 });
 
 test("rejects a file whose contents do not match its audio extension", async ({ page }) => {

@@ -1,7 +1,7 @@
 # Key Detection and Enharmonic Spelling Plan
 
-Status: locked after independent Codex review 2026-07-19. T1-T4 are complete and verified;
-T5 live browser verification is next.
+Status: locked after independent Codex review 2026-07-19. T1-T5 are complete and verified;
+T6 final consistency sweep is next.
 
 ## Goal
 
@@ -683,10 +683,13 @@ sweep, not the documentation step.
   resubmit, spelling preview columns, truthful copy, and component tests.
   - Files: `frontend/src/`
   - Verified: ESLint, TypeScript, and five component tests covering the full staged workflow.
-- [ ] **T5 (P1)** — live verification — extend the real browser flow through spelling with the
+- [x] **T5 (P1)** — live verification — extend the real browser flow through spelling with the
   locked unknown-key + override assertion contract.
   - Files: `frontend/e2e/`
-  - Verify: `npm run build && npm run test:e2e`
+  - Verified: the optimized production build and all four live Playwright flows pass. The
+    five-note flow proves `insufficient_notes`, selective D4 resolution, and explicit C-major
+    recovery; a separate twelve-note real transcription proves automatic C-major estimation
+    and zero-unknown spelling.
 - [ ] **T6 (P2)** — shared context sweep — final consistency pass over configuration, READMEs,
   architecture, pipeline, data model, research, evaluation, roadmap, current task, handoff,
   and engineering log. Includes the pretty-midi audit (review finding 2): confirm it is
@@ -736,7 +739,7 @@ unique above-margin cross-key agreement with worst-case support.
 persistence are sound. Disagreement was strategic (build order, unknown semantics) and was
 resolved by the user in favor of the settled decisions.
 
-**VERDICT:** ENG CLEARED — T1-T4 complete; ready to implement (T5 → T6). Canonical tonic naming, D4
+**VERDICT:** ENG CLEARED — T1-T5 complete; ready to implement T6. Canonical tonic naming, D4
 context-free agreement, chord_group/float contract, degenerate gates, and the pointer-coupled
 check are locked into the plan above.
 

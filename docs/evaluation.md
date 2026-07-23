@@ -91,12 +91,18 @@ Frontend component coverage gates the action on successful interpretation, disab
 submits, recovers from an API failure, and renders resolved/unknown totals, per-staff counts,
 decision scores, and typed unknown reasons without presenting unknown notes as complete notation.
 
-The live generated phrase contains five distinct tones at 120 BPM. Native Windows FFprobe/FFmpeg
-normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the onset estimator must
-accept an automatic tempo within 119.5-120.5 BPM before the UI displays symbolic timing, runs
-hand/staff interpretation, and separates notation voices. The monophonic phrase must resolve all
-five notes as voice 1 with no unknowns. This proves the real transcription-to-voice boundary, not
-general piano accuracy.
+The first live generated phrase contains five distinct tones at 120 BPM. Native Windows
+FFprobe/FFmpeg normalize it, Basic Pitch 0.4.0/TensorFlow 2.15 emits real note events, and the
+onset estimator must accept an automatic tempo within 119.5-120.5 BPM before the UI displays
+symbolic timing, runs hand/staff interpretation, and separates notation voices. The monophonic
+phrase must resolve all five notes as voice 1. Its deliberately small note count then proves
+typed `insufficient_notes`: only D and G resolve across every plausible key, C/E/F remain
+unknown, and a C-major override resolves all five written names.
+
+A second twelve-note generated C-major phrase follows the same real media/transcription path with
+a 120 BPM override, then must automatically estimate C major and produce zero unknown spellings.
+Together these prove the real transcription-to-spelling boundary and both primary recovery paths,
+not general piano, key, or engraving accuracy.
 
 ## Known limitations
 

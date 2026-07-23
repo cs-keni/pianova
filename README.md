@@ -167,11 +167,12 @@ Open `http://localhost:3000`. API documentation is at `http://127.0.0.1:18080/do
 
 Create a project, upload a supported piano file, select **Inspect and prepare audio**, select
 **Transcribe piano**, select **Estimate tempo and quantize**, select **Assign hands and staves**,
-then select **Separate voices**. Success means the page reports `Notation voice separation ready`,
-shows resolved and unknown voice counts plus per-staff counts and a bounded evidence preview, and
+then select **Separate voices** and **Detect key & spell notes**. Success means the page reports
+`Key detection and pitch spelling ready`, shows the estimated or selected key plus resolved and
+unknown written pitches in a bounded evidence preview, and
 preserves the normalized WAV, note-event JSON, raw MIDI, original timing, readable timing,
-assignment provenance, and voice provenance. If automatic tempo is ambiguous, enter a BPM
-override and retry.
+assignment provenance, voice provenance, and spelling provenance. If automatic tempo or key
+evidence is ambiguous, enter the corresponding override and retry.
 
 Run backend checks from `backend/`:
 
@@ -193,10 +194,10 @@ npm run test:e2e
 ```
 
 Playwright starts both local servers through a platform-aware Python launcher on API port 18080,
-creates real migrated projects, runs FFprobe, FFmpeg, and Basic Pitch/TensorFlow on a generated
-five-note 120 BPM phrase, verifies automatic tempo estimation, quantization, hand/staff
-interpretation, and all-voice-1 notation separation, verifies video metadata, and rejects content
-that only pretends to be WAV. The live transcription flow requires
+creates real migrated projects, runs FFprobe, FFmpeg, and Basic Pitch/TensorFlow on generated
+phrases, verifies automatic tempo estimation, quantization, hand/staff interpretation,
+notation-voice separation, insufficient-key override recovery, and automatic C-major spelling,
+verifies video metadata, and rejects content that only pretends to be WAV. The live transcription flow requires
 `.venv-transcription`. Override the test API port with `PIANOVA_E2E_API_PORT`.
 
 ## Configuration
@@ -255,8 +256,8 @@ Only process recordings you possess or are authorized to transcribe. Pianova doe
 
 Secure upload, normalized media preparation, raw Basic Pitch note events, raw MIDI, readable
 global timing, independent hand/staff interpretation, notation-voice separation, and the
-key-aware spelling backend/UI boundary are complete. Next: finish live spelling verification, then
-MusicXML, optional score rendering, correction tools, evaluation,
+key-aware spelling backend/UI and live-verification boundary are complete. Next: finish the
+milestone consistency sweep, then MusicXML, optional score rendering, correction tools, evaluation,
 and finally Synthesia analysis. See the
 [milestone roadmap](docs/roadmap.md).
 

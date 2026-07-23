@@ -256,3 +256,14 @@
   terminal copy truthfully defers cleaned MIDI, MusicXML, and rendering.
 - ESLint, TypeScript, and five component tests pass. The main workflow test covers failure/retry,
   unknown-key recovery, override payloads, override-after-result, and clearing the selector.
+
+## 2026-07-23 — Live transcription-to-spelling boundary
+
+- Extended the five-note real-transcription flow through the locked insufficient-key behavior:
+  D and G resolve under every plausible key, C/E/F remain typed unknowns, and a C-major override
+  respells all five without changing their MIDI pitches.
+- Added a separate twelve-note generated C-major phrase so the live suite proves the primary
+  automatic-estimation path as well as recovery. Basic Pitch output remains sufficient for the
+  deterministic estimator to select C major and resolve every spelling.
+- The optimized Next.js build and all four native Chromium flows pass. These fixtures prove
+  orchestration and UI truthfulness, not corpus-scale key or spelling accuracy.

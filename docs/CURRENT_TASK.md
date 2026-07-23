@@ -6,8 +6,8 @@ Key detection and enharmonic spelling over the verified notation-voice boundary.
 plan is `docs/KEY_SPELLING_PLAN.md`, drafted and locked through gstack plan-eng-review on
 2026-07-19 with a Codex outside-voice pass absorbed (report at the end of the plan file,
 verdict ENG CLEARED, no unresolved decisions). Codex's independent review found and closed two
-scoring-contract blockers; T1 pure engine, T2 checked persistence, and T3 backend integration are
-implemented and verified through T4. The next step is T5 (live browser verification). The prior voice plan
+scoring-contract blockers; implementation is verified through T5, including both live browser
+contracts. The next step is T6 (final shared-context and dependency consistency sweep). The prior voice plan
 `docs/VOICE_SEPARATION_PLAN.md` is complete through T1-T7 and its decisions stay locked.
 
 ## Status
@@ -37,7 +37,11 @@ typed key card, bounded spelling evidence, and truthful downstream deferrals.
 - ESLint and TypeScript pass.
 - Five Vitest component tests pass.
 - The optimized Next.js production build passes.
-- Three Playwright tests pass against live FastAPI and Next.js servers. The primary audio flow performs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM estimation, quantization, hand/staff interpretation, and all-voice-1 notation separation.
+- Four Playwright tests pass against live FastAPI and Next.js servers. The primary five-note
+  flow performs real FFprobe, FFmpeg, Basic Pitch/TensorFlow, automatic 120 BPM estimation,
+  quantization, hand/staff interpretation, notation-voice separation, typed insufficient-key
+  recovery, and explicit C-major respelling. A separate twelve-note flow proves automatic
+  C-major estimation and zero-unknown spelling over real transcription output.
 
 ## Delivered interpretation boundary
 
@@ -137,8 +141,16 @@ until the spelling boundary is verified.
 - The component suite covers failure/retry, pending state, unknown recovery, override after a
   result, clearing back to automatic, and request payloads.
 
+## Delivered live key/spelling boundary (T5)
+
+- The five-note 120 BPM fixture reaches the eighth workflow step, reports `insufficient_notes`,
+  preserves the two D/G stable spellings, exposes three unknowns, and recovers all five names
+  after an explicit C-major override.
+- A twelve-note C-major fixture independently traverses the real worker and automatically
+  estimates C major with every written pitch resolved.
+- The production build and four live Playwright flows pass.
+
 ## Active blockers
 
-None. T5 can begin. The generated-phrase browser flow must now be extended through the new
-spelling UI with both the locked insufficient-evidence override path and a clear-key automatic
-estimate.
+None. T6 can begin. MusicXML remains gated until the final documentation and dependency audit is
+complete.

@@ -11,10 +11,11 @@ Pianova is built as verified vertical slices. A milestone is complete only when 
 7. **Voice separation: complete.** Shared orchestration, the deterministic per-staff
    conflict-graph engine, checked persistence, API/service, hardened reuse, concurrency-safe
    cascade invalidation, UI, live browser coverage, and documentation are complete.
-8. **Key-aware spelling: in progress (T4/6 complete).** The pure engine, checked persistence,
+8. **Key-aware spelling: in progress (T5/6 complete).** The pure engine, checked persistence,
    service/API, hardened reuse, all upstream invalidation cascades, and both-order concurrency
    coverage are complete. The frontend action, key recovery selector/card, spelling evidence, and
-   component coverage are complete. Live verification and the final documentation sweep remain.
+   component coverage are complete. Live verification proves both insufficient-key override
+   recovery and automatic resolved-key spelling. Only the final documentation sweep remains.
 9. **MusicXML and optional rendering.** Editable MusicXML first; MuseScore PDF/SVG degrades independently.
 10. **Inspection and correction.** Note table, piano roll, synchronized playback, edits, and artifact regeneration.
 11. **Evaluation.** Reproducible benchmark corpus, transcription metrics, notation-readability review, and regression reports.
